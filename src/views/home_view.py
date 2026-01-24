@@ -22,21 +22,31 @@ class HomeView:
             The home view control
         """
         # Header
+        def _pick_icon(*names):
+            for n in names:
+                if hasattr(ft.icons, n):
+                    return getattr(ft.icons, n)
+            # generic fallbacks
+            for generic in ("MENU", "INFO", "HELP"):
+                if hasattr(ft.icons, generic):
+                    return getattr(ft.icons, generic)
+            return None
+
         header = ft.Container(
             content=ft.Row(
                 controls=[
-                    ft.Icon(ft.icons.BOOK, size=40, color=ft.colors.BLUE),
+                    ft.Icon(_pick_icon("BOOK", "MENU_BOOK", "LIBRARY_BOOKS", "DESCRIPTION"), size=40, color=ft.Colors.BLUE),
                     ft.Text(
                         "DIARIUM",
                         size=32,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.colors.BLUE,
+                        color=ft.Colors.BLUE,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             padding=20,
-            bgcolor=ft.colors.BLUE_50,
+            bgcolor=ft.Colors.BLUE_50,
         )
         
         # Welcome message
@@ -52,7 +62,7 @@ class HomeView:
                     ft.Text(
                         "Start writing your thoughts and memories",
                         size=16,
-                        color=ft.colors.GREY_700,
+                        color=ft.Colors.GREY_700,
                         text_align=ft.TextAlign.CENTER,
                     ),
                 ],
@@ -68,7 +78,7 @@ class HomeView:
                 controls=[
                     ft.ElevatedButton(
                         "New Entry",
-                        icon=ft.icons.ADD,
+                        icon=_pick_icon("ADD", "ADD_CIRCLE", "ADD_BOX", "PLUS_ONE"),
                         on_click=self._on_new_entry,
                         style=ft.ButtonStyle(
                             padding=ft.padding.all(20),
@@ -76,7 +86,7 @@ class HomeView:
                     ),
                     ft.OutlinedButton(
                         "View Entries",
-                        icon=ft.icons.LIST,
+                        icon=_pick_icon("LIST", "LIST_ALT", "FORMAT_LIST_BULLETED", "VIEW_LIST"),
                         on_click=self._on_view_entries,
                         style=ft.ButtonStyle(
                             padding=ft.padding.all(20),
@@ -103,13 +113,15 @@ class HomeView:
     def _on_new_entry(self, e):
         """Handle new entry button click"""
         # TODO: Implement new entry functionality
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("New entry feature coming soon!"))
-        )
+        snack = ft.SnackBar(content=ft.Text("New entry feature coming soon!"))
+        self.page.snack_bar = snack
+        self.page.snack_bar.open = True
+        self.page.update()
     
     def _on_view_entries(self, e):
         """Handle view entries button click"""
         # TODO: Implement view entries functionality
-        self.page.show_snack_bar(
-            ft.SnackBar(content=ft.Text("View entries feature coming soon!"))
-        )
+        snack = ft.SnackBar(content=ft.Text("View entries feature coming soon!"))
+        self.page.snack_bar = snack
+        self.page.snack_bar.open = True
+        self.page.update()
