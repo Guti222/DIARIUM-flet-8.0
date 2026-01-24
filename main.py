@@ -1,5 +1,5 @@
 """
-DIARIUM - Diary Application with Flet 8.0
+DIARIUM - Diary Application with Flet 0.80+
 Main entry point for the application
 """
 import flet as ft

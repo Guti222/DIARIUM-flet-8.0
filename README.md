@@ -1,6 +1,6 @@
 # DIARIUM - Personal Diary Application
 
-A modern, elegant personal diary application built with [Flet](https://flet.dev/) framework.
+A modern, elegant personal diary application built with [Flet](https://flet.dev/) 0.80+ framework.
 
 ## 📖 About
 
