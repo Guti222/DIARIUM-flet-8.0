@@ -1,5 +1,6 @@
 import flet as ft
 from src.ui.components.widgets.buttons import create_image_button
+from src.ui.pages.account_list_page.account_list_page import account_list_page
 
 # Import opcional con fallback durante la migración
 try:
@@ -25,6 +26,20 @@ def title_buttons(open_file_explorer_callback=None, page: ft.Page = None):
     Botones del título de la aplicación
     """
     
+    def navigate_to_account_list(p: ft.Page):
+        if p is None:
+            return
+        # Reemplazar el contenido actual por la vista de plan de cuentas
+        try:
+            p.clean()
+            p.add(account_list_page(p))
+            p.update()
+        except Exception as ex:
+            snack = ft.SnackBar(content=ft.Text(f"Error abriendo plan de cuentas: {ex}"))
+            p.overlay.append(snack)
+            snack.open = True
+            p.update()
+
     return  ft.Container(
         padding=ft.padding.only(top=15,right=35),
         content= ft.Column(
@@ -57,7 +72,7 @@ def title_buttons(open_file_explorer_callback=None, page: ft.Page = None):
                             text= "Ver Plan de Cuentas",
                             icon= ft.Icons.VIEW_LIST,
                             description="Visualizar el plan de cuentas completo",
-                            on_click=lambda e: page.go("/account-list") if page else print("Navegar a /account-list")
+                            on_click=lambda e: navigate_to_account_list(e.page)
                         )
                     ]
                 ),

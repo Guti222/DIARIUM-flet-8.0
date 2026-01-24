@@ -1,6 +1,7 @@
 import flet as ft
 import urllib.parse
 from src.ui.components.widgets.book_card import book_card
+from src.ui.pages.book_journal_page.book_journal_page import book_journal_page
 
 # Importaciones de datos con fallback durante migración
 try:
@@ -40,8 +41,17 @@ def title_viewfiles(page: ft.Page | None = None):
             for libro in libros:
                 # Acción de navegación al hacer click en el contenedor
                 def _go_to_libro(e, l=libro):
-                    # Navegar por ID para evitar inserciones duplicadas
-                    page.go(f"/book-journal?libro_id={l.id_libro_diario}")
+                    # Navegar a la vista del libro sin router: renderizar directamente
+                    try:
+                        page.clean()
+                        page.add(book_journal_page(page, libro_id=l.id_libro_diario))
+                        page.update()
+                    except Exception as ex:
+                        # Fallback: mostrar error
+                        sb = ft.SnackBar(content=ft.Text(f"No se pudo abrir el libro: {ex}"))
+                        page.overlay.append(sb)
+                        sb.open = True
+                        page.update()
 
                 # Acción de eliminar libro (con confirmación y refresco in-place)
                 def _confirm_delete(_e, l=libro):
@@ -81,7 +91,8 @@ def title_viewfiles(page: ft.Page | None = None):
                         actions_alignment=ft.MainAxisAlignment.END,
                         bgcolor=ft.Colors.WHITE,
                     )
-                    page.open(confirm)
+                    page.overlay.append(confirm)
+                    confirm.open = True
                     page.update()
 
                 card = book_card(libro, on_delete=_confirm_delete)

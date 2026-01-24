@@ -1,45 +1,68 @@
 import flet as ft
+from types import SimpleNamespace
+
+# Tkinter para diálogos nativos
+try:
+    import tkinter as tk
+    from tkinter import filedialog
+except Exception:
+    tk = None
+    filedialog = None
 
 from src.ui.components.backgrounds import create_modern_background
 from src.ui.pages.menu_page.title_buttons import title_buttons
 from src.ui.pages.menu_page.title_viewfiles import title_viewfiles
 from src.ui.pages.menu_page.title_menu import titlemenu
+from src.ui.pages.book_journal_page.book_journal_page import book_journal_page
 
 
 def menu_page(page: ft.Page):
-    # FilePicker se crea bajo demanda para evitar bloques visuales al abrir la app
-    file_picker: ft.FilePicker | None = None
-
-    # ✅ Función para manejar la selección de archivos
-    def on_file_selected(e: ft.FilePickerResultEvent):
-        if e.files:
-            selected_file = e.files[0]
-            print(f"Archivo seleccionado: {selected_file.name}")
-            print(f"Ruta: {selected_file.path}")
-            
-            # Mostrar SnackBar de confirmación
-            snack_bar = ft.SnackBar(
-                content=ft.Text(f"Archivo seleccionado: {selected_file.name}"),
-                action="OK",
-                duration=3000
+    # ✅ Función para manejar la selección de archivos (Tkinter)
+    def pick_file_with_tk() -> SimpleNamespace | None:
+        if filedialog is None:
+            show_snack_bar("Tkinter no está disponible en este entorno")
+            return None
+        root = None
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            # Forzar que el diálogo salga al frente
+            try:
+                root.attributes('-topmost', True)
+                root.update()
+            except Exception:
+                pass
+            path = filedialog.askopenfilename(
+                title="Seleccionar libro contable Excel",
+                filetypes=[("Excel", "*.xlsx *.xls")]
             )
-            page.overlay.append(snack_bar)
-            snack_bar.open = True
-            page.update()
-            
-            # ✅ PEDIR PERMISO PARA MODIFICAR
-            show_modification_dialog(selected_file)
-            
-        else:
-            print("No se seleccionó ningún archivo")
+            if not path:
+                return None
+            from pathlib import Path
+            p = Path(path)
+            return SimpleNamespace(name=p.name, path=str(p))
+        except Exception as ex:
+            show_snack_bar(f"No se pudo abrir el selector: {ex}")
+            return None
+        finally:
+            try:
+                if root is not None:
+                    root.destroy()
+            except Exception:
+                pass
     
     # ✅ Diálogo para pedir permiso de modificación
     def show_modification_dialog(selected_file):
         def confirm_modification(e):
             dialog.open = False
             page.update()
-            # ✅ Aquí irá tu lógica para modificar el Excel
-            process_excel_modification(selected_file)
+            # Navegar a la vista de Libro Diario (placeholder usando nombre de archivo como empresa)
+            try:
+                page.clean()
+                page.add(book_journal_page(page, empresa=selected_file.name))
+                page.update()
+            except Exception as ex:
+                show_snack_bar(f"No se pudo abrir el libro: {ex}")
         
         def cancel_modification(e):
             dialog.open = False
@@ -70,22 +93,8 @@ def menu_page(page: ft.Page):
     
     # ✅ Función para procesar la modificación (placeholder para tu lógica futura)
     def process_excel_modification(selected_file):
-        show_snack_bar(f"✅ Permiso concedido para modificar: {selected_file.name}")
-        
-        # ✅ AQUÍ IRÁ TU LÓGICA PARA MODIFICAR EL EXCEL
-        # Por ahora solo mostramos un mensaje
-        print(f"PREPARADO para modificar: {selected_file.path}")
-        
-        # Futuramente aquí podrás:
-        # 1. Leer el Excel con pandas
-        # 2. Realizar modificaciones
-        # 3. Guardar los cambios
-        
-        # Ejemplo futuro:
-        # import pandas as pd
-        # df = pd.read_excel(selected_file.path)
-        # # ... tus modificaciones ...
-        # df.to_excel(selected_file.path, index=False)
+        # Reservado para importación futura desde Excel
+        print(f"Archivo listo para importar/modificar: {selected_file.path}")
     
     # ✅ Función auxiliar para mostrar mensajes
     def show_snack_bar(message):
@@ -98,25 +107,26 @@ def menu_page(page: ft.Page):
         snack_bar.open = True
         page.update()
     
-    # ✅ Asignar el evento de selección
-    def ensure_file_picker():
-        nonlocal file_picker
-        if file_picker is None:
-            file_picker = ft.FilePicker()
-            file_picker.on_result = on_file_selected
-            page.overlay.append(file_picker)
-            page.update()
-        return file_picker
-    
-    # ✅ Función para abrir el explorador de archivos
-    async def open_file_explorer(e):
-        picker = ensure_file_picker()
-        await picker.pick_files(
-            allowed_extensions=["xlsx", "xls"],
-            dialog_title="Seleccionar libro contable Excel",
-            file_type=ft.FilePickerFileType.CUSTOM,
-            allow_multiple=False
+    # ✅ Función para abrir el explorador de archivos con Tkinter
+    def open_file_explorer(_e=None):
+        selected_file = pick_file_with_tk()
+        if not selected_file:
+            return
+        print(f"Archivo seleccionado: {selected_file.name}")
+        print(f"Ruta: {selected_file.path}")
+
+        # Mostrar SnackBar de confirmación
+        snack_bar = ft.SnackBar(
+            content=ft.Text(f"Archivo seleccionado: {selected_file.name}"),
+            action="OK",
+            duration=3000
         )
+        page.overlay.append(snack_bar)
+        snack_bar.open = True
+        page.update()
+
+        # ✅ PEDIR PERMISO PARA MODIFICAR
+        show_modification_dialog(selected_file)
     
     # Pasar la función a title_buttons
     buttons_content = title_buttons(open_file_explorer, page)
