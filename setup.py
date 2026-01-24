@@ -44,7 +44,12 @@ def main():
             return
         print("Removing existing virtual environment...")
         import shutil
-        shutil.rmtree("venv")
+        try:
+            shutil.rmtree("venv")
+        except Exception as e:
+            print(f"❌ Error removing virtual environment: {e}")
+            print("Please remove the 'venv' directory manually and try again.")
+            return
     
     create_virtual_env()
     install_dependencies()
