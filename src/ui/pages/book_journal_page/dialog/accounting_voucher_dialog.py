@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 import sqlite3
 import asyncio
+import asyncio
 
 from src.utils.paths import get_db_path
 from data.obtenerCuentas import (
@@ -113,7 +114,24 @@ class AccountingVoucherDialog:
         )
         self.overlay_host = ft.Container(visible=False, content=self.overlay_panel, top=0, left=0)
         self.overlay_host.positioned = True
-        self.overlay_backdrop = ft.Container(visible=False, expand=True, bgcolor=ft.Colors.TRANSPARENT, on_click=self._backdrop_click)
+        self.overlay_backdrop = ft.Container(
+            visible=False,
+            expand=True,
+            bgcolor=ft.Colors.with_opacity(0.01, ft.Colors.BLACK),
+            on_click=self._backdrop_click,
+            top=0,
+            left=0,
+            right=0,
+            bottom=0,
+        )
+        self.overlay_backdrop.positioned = True
+
+        # Backdrop global para clic fuera del diálogo (usando page.overlay)
+        self.global_backdrop = ft.Container(
+            expand=True,
+            bgcolor=ft.Colors.TRANSPARENT,
+            on_click=self._backdrop_click,
+        )
 
         # Filas como objetos
         self.rows: List[VoucherRow] = []
@@ -126,6 +144,9 @@ class AccountingVoucherDialog:
         self.dia_field = ft.TextField(hint_text='Ingrese el día', width=140)
         self.comentario_field = ft.TextField(hint_text='Ingrese comentarios', multiline=True, min_lines=1, max_lines=3)
         self.suspend_updates = False
+        self._hide_task: asyncio.Task | None = None
+        self.code_focused = False
+        self.overlay_hovered = False
 
         # Style helpers
         self.TIPO_COLORES = {
@@ -136,6 +157,22 @@ class AccountingVoucherDialog:
             "Gastos": ft.Colors.ORANGE_700,
             "Resultado": ft.Colors.PURPLE_600,
         }
+
+        # Capturar clic global en la página para cerrar sugerencias si están abiertas
+        self._prev_pointer_down = getattr(self.page, "on_pointer_down", None)
+
+        def _page_pointer_down(e):
+            try:
+                if self.overlay_panel.visible:
+                    self.hide_overlay()
+            finally:
+                if callable(self._prev_pointer_down):
+                    try:
+                        self._prev_pointer_down(e)
+                    except Exception:
+                        pass
+
+        self.page.on_pointer_down = _page_pointer_down
 
     def buscar_cuentas_por_codigo(self, query: str, max_items: int = 50):
         q = (query or "").strip().lower()
@@ -177,6 +214,10 @@ class AccountingVoucherDialog:
         ROW_H = 64
         HEADER_H = 48
         self.overlay_panel.content = ft.Column(items, spacing=0, scroll=ft.ScrollMode.AUTO)
+        self.overlay_panel.on_hover = lambda e: (setattr(self, 'overlay_hovered', e.data == 'true'), self.cancel_hide_overlay() if e.data == 'true' else self.schedule_hide_overlay(0.25))
+        self.overlay_panel.on_pointer_enter = lambda e: (setattr(self, 'overlay_hovered', True), self.cancel_hide_overlay())
+        self.overlay_panel.on_pointer_leave = lambda e: (setattr(self, 'overlay_hovered', False), self.schedule_hide_overlay(0.25))
+        self.overlay_panel.on_wheel = lambda e: (setattr(self, 'overlay_hovered', True), self.cancel_hide_overlay())
         panel_h = self.overlay_panel.height or 180
         filas_totales = len(self.rows)
         fila_top = HEADER_H + idx * ROW_H
@@ -189,16 +230,54 @@ class AccountingVoucherDialog:
         self.overlay_host.visible = True
         self.overlay_panel.visible = True
         self.overlay_backdrop.visible = True
+        try:
+            if self.global_backdrop not in self.page.overlay:
+                self.page.overlay.append(self.global_backdrop)
+        except Exception:
+            pass
         if self.area_scroll:
             self.area_scroll.update()
 
     def hide_overlay(self):
+        self.cancel_hide_overlay()
         self.overlay_panel.visible = False
         self.overlay_host.visible = False
         self.overlay_backdrop.visible = False
-        if self.area_scroll:
-            self.area_scroll.update()
+        try:
+            if self.global_backdrop in self.page.overlay:
+                self.page.overlay.remove(self.global_backdrop)
+        except Exception:
+            pass
+        try:
+            if self.area_scroll:
+                self.area_scroll.update()
+            if self.page:
+                self.page.update()
+        except Exception:
+            pass
         self._pending_blur = False
+
+    def cancel_hide_overlay(self):
+        try:
+            if self._hide_task and not self._hide_task.done():
+                self._hide_task.cancel()
+        except Exception:
+            pass
+        self._hide_task = None
+
+    def schedule_hide_overlay(self, delay: float = 0.25):
+        self.cancel_hide_overlay()
+        async def _delayed():
+            try:
+                await asyncio.sleep(delay)
+                if self.overlay_panel.visible and not self.code_focused and not self.overlay_hovered:
+                    self.hide_overlay()
+            except asyncio.CancelledError:
+                return
+        try:
+            self._hide_task = asyncio.create_task(_delayed())
+        except Exception:
+            self._hide_task = None
 
     def _backdrop_click(self, e=None):
         # Click afuera: cerrar sugerencias inmediatamente
@@ -275,10 +354,10 @@ class AccountingVoucherDialog:
             else:
                 actualizar_nombre('', '')
 
-        tf_codigo.on_change = lambda e: mostrar_sugerencias_codigo()
-        tf_codigo.on_focus = lambda e: mostrar_sugerencias_codigo()
-        # Cerrar sugerencias cuando pierde foco SIN el delay problemático
-        tf_codigo.on_blur = lambda e: self.hide_overlay()
+        tf_codigo.on_change = lambda e: (self.cancel_hide_overlay(), mostrar_sugerencias_codigo())
+        tf_codigo.on_focus = lambda e: (setattr(self, 'code_focused', True), self.cancel_hide_overlay(), mostrar_sugerencias_codigo())
+        # Al perder foco, marca flag y programa cierre con retraso
+        tf_codigo.on_blur = lambda e: (setattr(self, 'code_focused', False), self.schedule_hide_overlay(0.25))
         # Cerrar sugerencias con Escape
         tf_codigo.on_key_down = lambda e: (self.hide_overlay() if e.key == 'Escape' else None)
 
@@ -337,7 +416,11 @@ class AccountingVoucherDialog:
         for _ in range(4):
             filas_column.controls.append(self.add_row())
         bottom_spacer = ft.Container(height=0)
-        filas_stack = ft.Stack(controls=[filas_column, self.overlay_backdrop, self.overlay_host], clip_behavior=ft.ClipBehavior.NONE)
+        filas_stack = ft.Stack(
+            controls=[filas_column, self.overlay_backdrop, self.overlay_host],
+            clip_behavior=ft.ClipBehavior.NONE,
+            expand=True,
+        )
         self.area_scroll = ft.Container(
             expand=True,
             border=ft.border.all(1, ft.Colors.GREY_300),

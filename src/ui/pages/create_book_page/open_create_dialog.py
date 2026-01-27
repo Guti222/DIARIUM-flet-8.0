@@ -103,7 +103,7 @@ def open_create_dialog(page: ft.Page):
                 except Exception:
                     id_mes = meses_map.get(str(mes_val).strip().lower(), 0)
 
-                libro = create_journal_book(empresa, contador, anio, id_mes, plan_id=plan_int)
+                libro = create_journal_book(empresa, contador, anio, id_mes, plan_id=plan_int, origen="creado")
                 new_id = agregar_libro(libro, get_db_path())
                 if isinstance(new_id, int):
                     # Navegación sin router: limpiar y renderizar la vista del libro

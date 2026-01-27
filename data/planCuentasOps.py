@@ -38,57 +38,8 @@ def crear_plan_cuenta(db_path: str, nombre_plan: str) -> Optional[int]:
 
 def copiar_cuentas_de_plan(db_path: str, origen_id: int, destino_id: int) -> int:
     """
-    Copia todas las cuentas del plan `origen_id` al plan `destino_id`.
-    Retorna la cantidad de cuentas copiadas.
-
-    Si el plan origen no tiene cuentas y `origen_id == 0` (General),
-    intenta copiar desde cuentas con `id_plan_cuenta IS NULL` como fallback.
+    Copia de planes no implementada con el nuevo esquema (cuentas ligadas por
+    tipo->rubro->genérico). Se retorna 0 para evitar errores en tiempo de ejecución.
     """
-    conn = None
-    try:
-        conn = sqlite3.connect(db_path, timeout=10)
-        conn.execute("PRAGMA busy_timeout=5000")
-        cur = conn.cursor()
-
-        # Verificar cantidad de origen
-        cur.execute("SELECT COUNT(*) FROM cuenta_contable WHERE id_plan_cuenta = ?", (origen_id,))
-        count_origen = cur.fetchone()[0]
-
-        if count_origen and count_origen > 0:
-            cur.execute(
-                """
-                INSERT INTO cuenta_contable (id_generico, descripcion, nombre_cuenta, codigo_cuenta, id_plan_cuenta)
-                SELECT id_generico, descripcion, nombre_cuenta, codigo_cuenta, ?
-                FROM cuenta_contable
-                WHERE id_plan_cuenta = ?
-                """,
-                (destino_id, origen_id)
-            )
-            conn.commit()
-            return cur.rowcount or 0
-        else:
-            # Fallback: copiar desde cuentas sin plan asignado
-            cur.execute("SELECT COUNT(*) FROM cuenta_contable WHERE id_plan_cuenta IS NULL")
-            count_null = cur.fetchone()[0]
-            if origen_id == 0 and count_null and count_null > 0:
-                cur.execute(
-                    """
-                    INSERT INTO cuenta_contable (id_generico, descripcion, nombre_cuenta, codigo_cuenta, id_plan_cuenta)
-                    SELECT id_generico, descripcion, nombre_cuenta, codigo_cuenta, ?
-                    FROM cuenta_contable
-                    WHERE id_plan_cuenta IS NULL
-                    """,
-                    (destino_id,)
-                )
-                conn.commit()
-                return cur.rowcount or 0
-        return 0
-    except Error as e:
-        print(f"Error copiando cuentas de plan {origen_id} a {destino_id}: {e}")
-        return 0
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    print("copiar_cuentas_de_plan: no implementado con el esquema sin id_plan_cuenta en cuenta/rubro/generico")
+    return 0

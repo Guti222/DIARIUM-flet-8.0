@@ -6,6 +6,7 @@ from data.models.plan_cuenta import PlanCuenta
 class TipoCuenta:
     id_tipo_cuenta: int = 0
     nombre_tipo_cuenta: str = ''
+    numero_cuenta: str = ''
     
     def __str__(self):
         return self.nombre_tipo_cuenta
@@ -15,6 +16,7 @@ class Rubro:
     id_rubro: int = 0
     id_tipo_cuenta: int = 0
     nombre_rubro: str = ''
+    numero_cuenta: str = ''
     tipo_cuenta: Optional[TipoCuenta] = None  # Relación directa
     
     def __str__(self):
@@ -29,6 +31,7 @@ class Generico:
     id_generico: int = 0
     id_rubro: int = 0
     nombre_generico: str = ''
+    numero_cuenta: str = ''
     rubro: Optional[Rubro] = None  # Relación directa
     
     def __str__(self):

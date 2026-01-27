@@ -48,8 +48,11 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
 
     tipo_menu.items = [
         ft.PopupMenuItem(
-            content=ft.Text(t.nombre_tipo_cuenta, color=ft.Colors.BLACK),
-            data={"id": t.id_tipo_cuenta, "nombre": t.nombre_tipo_cuenta},
+            content=ft.Row([
+                ft.Text(t.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                ft.Text(t.nombre_tipo_cuenta, color=ft.Colors.BLACK),
+            ], spacing=8),
+            data={"id": t.id_tipo_cuenta, "nombre": t.nombre_tipo_cuenta, "numero": t.numero_cuenta},
             on_click=lambda e: select_tipo(e.control.data)
         ) for t in tipos
     ]
@@ -79,14 +82,17 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
 
     def select_tipo(data):
         selected_tipo.update(data)
-        tipo_menu.content.content.controls[0].value = data["nombre"]
+        tipo_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         tipo_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         reset_rubro()
         rubros = obtenerTodosRubroPorTipoCuenta(db_path, int(data["id"]))
         rubro_menu.items = [
             ft.PopupMenuItem(
-                content=ft.Text(r.nombre_rubro, color=ft.Colors.BLACK),
-                data={"id": r.id_rubro, "nombre": r.nombre_rubro},
+                content=ft.Row([
+                    ft.Text(r.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                    ft.Text(r.nombre_rubro, color=ft.Colors.BLACK),
+                ], spacing=8),
+                data={"id": r.id_rubro, "nombre": r.nombre_rubro, "numero": r.numero_cuenta},
                 on_click=lambda e: select_rubro(e.control.data)
             ) for r in rubros
         ]
@@ -97,14 +103,17 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
 
     def select_rubro(data):
         selected_rubro.update(data)
-        rubro_menu.content.content.controls[0].value = data["nombre"]
+        rubro_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         rubro_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         reset_generico()
         genericos = obtenerTodosGenericoPorRubro(db_path, int(data["id"]))
         generico_menu.items = [
             ft.PopupMenuItem(
-                content=ft.Text(g.nombre_generico, color=ft.Colors.BLACK),
-                data={"id": g.id_generico, "nombre": g.nombre_generico},
+                content=ft.Row([
+                    ft.Text(g.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                    ft.Text(g.nombre_generico, color=ft.Colors.BLACK),
+                ], spacing=8),
+                data={"id": g.id_generico, "nombre": g.nombre_generico, "numero": g.numero_cuenta},
                 on_click=lambda e: select_generico(e.control.data)
             ) for g in genericos
         ]
@@ -161,7 +170,7 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
 
     def select_generico(data):
         selected_generico.update(data)
-        generico_menu.content.content.controls[0].value = data["nombre"]
+        generico_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         generico_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         sugerir_codigo(int(data["id"]))
         page.update()

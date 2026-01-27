@@ -18,6 +18,8 @@ class LibroDiario:
     total_debe: float = 0.0
     total_haber: float = 0.0
     id_plan_cuenta: int = 0
+    origen: str = "creado"
+    fecha_importacion: str | None = None
     
     def __str__(self):
         return f"Libro {self.nombre_empresa} - {self.ano}/{self.id_mes}"

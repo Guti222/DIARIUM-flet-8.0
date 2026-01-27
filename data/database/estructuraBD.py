@@ -8,7 +8,6 @@ sql_crear_plan_cuentas = """
             );
         """ 
 
-# CORREGIDO: Agregar coma después de codigo_cuenta y corregir nombre
 sql_crear_productos_cuenta_contable = """
         CREATE TABLE IF NOT EXISTS cuenta_contable (
             id_cuenta_contable INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,9 +15,7 @@ sql_crear_productos_cuenta_contable = """
             descripcion TEXT NOT NULL,
             nombre_cuenta TEXT NOT NULL,
             codigo_cuenta TEXT NOT NULL,
-            id_plan_cuenta INTEGER,
-            foreign key (id_generico) references generico(id_generico),
-            foreign key (id_plan_cuenta) references plan_cuentas(id_plan_cuenta)
+            foreign key (id_generico) references generico(id_generico)
         );
         """
 
@@ -33,6 +30,8 @@ sql_crear_productos_libro_diario = """
             total_debe REAL NOT NULL,
             total_haber REAL NOT NULL,  -- CORREGIDO: coma agregada
             id_plan_cuenta INTEGER,
+            origen TEXT NOT NULL DEFAULT 'creado',
+            fecha_importacion TEXT,
             foreign key (id_mes) references mes(id_mes)
         );
         """
@@ -47,15 +46,18 @@ sql_crear_productos_mes = """
 sql_crear_productos_tipo_cuenta = """
         CREATE TABLE IF NOT EXISTS tipo_cuenta (
             id_tipo_cuenta INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre_tipo_cuenta TEXT NOT NULL
+            nombre_tipo_cuenta TEXT NOT NULL,
+            numero_cuenta TEXT NOT NULL,
+            id_plan_cuenta INTEGER DEFAULT 0,
+            foreign key (id_plan_cuenta) references plan_cuentas(id_plan_cuenta)
         );
         """
 
-# CORREGIDO: Agregar coma después de nombre_rubro
 sql_crear_productos_rubro = """
         CREATE TABLE IF NOT EXISTS rubro (
             id_rubro INTEGER PRIMARY KEY AUTOINCREMENT,
             id_tipo_cuenta INTEGER NOT NULL,
+            numero_cuenta TEXT NOT NULL,
             nombre_rubro TEXT NOT NULL,  -- CORREGIDO: coma agregada
             foreign key (id_tipo_cuenta) references tipo_cuenta(id_tipo_cuenta)
         );
@@ -66,6 +68,7 @@ sql_crear_productos_generico = """
         CREATE TABLE IF NOT EXISTS generico (
             id_generico INTEGER PRIMARY KEY AUTOINCREMENT,
             id_rubro INTEGER NOT NULL,
+            numero_cuenta TEXT NOT NULL,
             nombre_generico TEXT NOT NULL,  -- CORREGIDO: coma agregada
             foreign key (id_rubro) references rubro(id_rubro)
         );
@@ -125,6 +128,24 @@ def crear_estructura_db(nombre_db):
         cursor.execute(sql_crear_productos_asiento)
         cursor.execute(sql_crear_productos_linea_asiento)
 
+        # Migraciones ligeras: agregar columnas si faltan
+        def ensure_column(table: str, column: str, ddl: str):
+            cursor.execute(f"PRAGMA table_info({table})")
+            cols = [row[1] for row in cursor.fetchall()]
+            if column not in cols:
+                try:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+                    print(f"✅ Columna agregada: {table}.{column}")
+                except Error as e:
+                    print(f"❌ No se pudo agregar columna {table}.{column}: {e}")
+
+        ensure_column("libro_diario", "origen", "TEXT NOT NULL DEFAULT 'creado'")
+        ensure_column("libro_diario", "fecha_importacion", "TEXT")
+        ensure_column("tipo_cuenta", "numero_cuenta", "TEXT DEFAULT ''")
+        ensure_column("tipo_cuenta", "id_plan_cuenta", "INTEGER DEFAULT 0")
+        ensure_column("rubro", "numero_cuenta", "TEXT DEFAULT ''")
+        ensure_column("generico", "numero_cuenta", "TEXT DEFAULT ''")
+
         # Confirmar los cambios
         conn.commit()
         print("🛠 Estructura de todas las tablas creada exitosamente.")
@@ -158,110 +179,119 @@ def poblar_tablas_catalogo(nombre_db):
         
         # 2. Poblar tabla TIPO_CUENTA
         tipos_cuenta = [
-            ('Activo',),
-            ('Pasivo',),
-            ('Patrimonio',),
-            ('Ingresos',),
-            ('Costos y Gastos',),
-            ('Cuentas de Orden',)
+            ('Activo', '1.0.0.000', 0),
+            ('Pasivo', '2.0.0.000', 0),
+            ('Patrimonio', '3.0.0.000', 0),
+            ('Ingresos', '4.0.0.000', 0),
+            ('Costos y Gastos', '5.0.0.000', 0),
+            ('Cuentas de Orden', '6.0.0.000', 0)
         ]
-        cursor.executemany("INSERT OR IGNORE INTO tipo_cuenta (nombre_tipo_cuenta) VALUES (?)", tipos_cuenta)
+        cursor.executemany(
+            "INSERT OR IGNORE INTO tipo_cuenta (nombre_tipo_cuenta, numero_cuenta, id_plan_cuenta) VALUES (?, ?, ?)",
+            tipos_cuenta,
+        )
         print("✅ Tabla TIPO_CUENTA poblada")
         
         # 3. Poblar tabla RUBRO
         rubros = [
             # Activo (id_tipo_cuenta = 1)
-            (1, 'Activo Corriente'),
-            (1, 'Activo No Corriente'),
+            (1, '1.1.0.000', 'Activo Corriente'),
+            (1, '1.2.0.000', 'Activo No Corriente'),
             # Pasivo (id_tipo_cuenta = 2)
-            (2, 'Pasivo Corriente'),
-            (2, 'Pasivo No Corriente'),
+            (2, '2.1.0.000', 'Pasivo Corriente'),
+            (2, '2.2.0.000', 'Pasivo No Corriente'),
             # Patrimonio (id_tipo_cuenta = 3)
-            (3, 'Capital Social'),
-            (3, 'Reservas'),
-            (3, 'Resultados del Ejercicio'),
-            (3, 'Otros Resultados Integrales'),
+            (3, '3.1.0.000', 'Capital Social'),
+            (3, '3.2.0.000', 'Reservas'),
+            (3, '3.3.0.000', 'Resultados del Ejercicio'),
+            (3, '3.4.0.000', 'Otros Resultados Integrales'),
             # Ingresos (id_tipo_cuenta = 4)
-            (4, 'Ingresos por Ventas'),
-            (4, 'Otros Ingresos Operacionales'),
-            (4, 'Ingresos No Operacionales'),
+            (4, '4.1.0.000', 'Ingresos por Ventas'),
+            (4, '4.2.0.000', 'Otros Ingresos Operacionales'),
+            (4, '4.3.0.000', 'Ingresos No Operacionales'),
             # Costos y Gastos (id_tipo_cuenta = 5)
-            (5, 'Costo de Ventas'),
-            (5, 'Gastos de Operación'),
-            (5, 'Otros Gastos y Pérdidas'),
+            (5, '5.1.0.000', 'Costo de Ventas'),
+            (5, '5.2.0.000', 'Gastos de Operación'),
+            (5, '5.3.0.000', 'Otros Gastos y Pérdidas'),
             # Cuentas de Orden (id_tipo_cuenta = 6)
-            (6, 'Cuentas de Orden Deudoras'),
-            (6, 'Cuentas de Orden Acreedoras')
+            (6, '6.1.0.000', 'Cuentas de Orden Deudoras'),
+            (6, '6.2.0.000', 'Cuentas de Orden Acreedoras')
         ]
-        cursor.executemany("INSERT OR IGNORE INTO rubro (id_tipo_cuenta, nombre_rubro) VALUES (?, ?)", rubros)
+        cursor.executemany(
+            "INSERT OR IGNORE INTO rubro (id_tipo_cuenta, numero_cuenta, nombre_rubro) VALUES (?, ?, ?)",
+            rubros,
+        )
         print("✅ Tabla RUBRO poblada")
         
         # 4. Poblar tabla GENERICO
         genericos = [
             # ACTIVO CORRIENTE (id_rubro = 1)
-            (1, 'Efectivo y Equivalentes de Efectivo'),
-            (1, 'Inversiones a Corto Plazo'),
-            (1, 'Cuentas por Cobrar Comerciales'),
-            (1, 'Otras Cuentas por Cobrar'),
-            (1, 'Inventarios'),
-            (1, 'Gastos Pagados por Anticipado'),
+            (1, '1.1.1.000', 'Efectivo y Equivalentes de Efectivo'),
+            (1, '1.1.2.000', 'Inversiones a Corto Plazo'),
+            (1, '1.1.3.000', 'Cuentas por Cobrar Comerciales'),
+            (1, '1.1.4.000', 'Otras Cuentas por Cobrar'),
+            (1, '1.1.5.000', 'Inventarios'),
+            (1, '1.1.6.000', 'Gastos Pagados por Anticipado'),
             
             # ACTIVO NO CORRIENTE (id_rubro = 2)
-            (2, 'Propiedades, Planta y Equipo'),
-            (2, 'Activos Intangibles'),
-            (2, 'Inversiones a Largo Plazo'),
-            (2, 'Otros Activos No Corrientes'),
+            (2, '1.2.1.000', 'Propiedades, Planta y Equipo'),
+            (2, '1.2.2.000', 'Activos Intangibles'),
+            (2, '1.2.3.000', 'Inversiones a Largo Plazo'),
+            (2, '1.2.4.000', 'Otros Activos No Corrientes'),
             
             # PASIVO CORRIENTE (id_rubro = 3)
-            (3, 'Obligaciones Financieras a Corto Plazo'),
-            (3, 'Cuentas por Pagar Comerciales'),
-            (3, 'Otras Cuentas por Pagar'),
-            (3, 'Impuestos por Pagar'),
-            (3, 'Provisiones a Corto Plazo'),
-            (3, 'Ingresos Diferidos'),
+            (3, '2.1.1.000', 'Obligaciones Financieras a Corto Plazo'),
+            (3, '2.1.2.000', 'Cuentas por Pagar Comerciales'),
+            (3, '2.1.3.000', 'Otras Cuentas por Pagar'),
+            (3, '2.1.4.000', 'Impuestos por Pagar'),
+            (3, '2.1.5.000', 'Provisiones a Corto Plazo'),
+            (3, '2.1.6.000', 'Ingresos Diferidos'),
             
             # PASIVO NO CORRIENTE (id_rubro = 4)
-            (4, 'Obligaciones Financieras a Largo Plazo'),
-            (4, 'Otros Pasivos a Largo Plazo'),
+            (4, '2.2.1.000', 'Obligaciones Financieras a Largo Plazo'),
+            (4, '2.2.2.000', 'Otros Pasivos a Largo Plazo'),
             
             # CAPITAL SOCIAL (id_rubro = 5)
-            (5, 'Capital Social'),
+            (5, '3.1.1.000', 'Capital Social'),
             
             # RESERVAS (id_rubro = 6)
-            (6, 'Reservas'),
+            (6, '3.2.1.000', 'Reservas'),
             
             # RESULTADOS DEL EJERCICIO (id_rubro = 7)
-            (7, 'Resultados del Ejercicio'),
+            (7, '3.3.1.000', 'Resultados del Ejercicio'),
             
             # OTROS RESULTADOS INTEGRALES (id_rubro = 8)
-            (8, 'Otros Resultados Integrales'),
+            (8, '3.4.1.000', 'Otros Resultados Integrales'),
             
             # INGRESOS POR VENTAS (id_rubro = 9)
-            (9, 'Ingresos por Ventas'),
+            (9, '4.1.1.000', 'Ingresos por Ventas'),
             
             # OTROS INGRESOS OPERACIONALES (id_rubro = 10)
-            (10, 'Otros Ingresos Operacionales'),
+            (10, '4.2.1.000', 'Otros Ingresos Operacionales'),
             
             # INGRESOS NO OPERACIONALES (id_rubro = 11)
-            (11, 'Ingresos No Operacionales'),
+            (11, '4.3.1.000', 'Ingresos No Operacionales'),
             
             # COSTO DE VENTAS (id_rubro = 12)
-            (12, 'Costo de Ventas'),
+            (12, '5.1.1.000', 'Costo de Ventas'),
             
             # GASTOS DE OPERACIÓN (id_rubro = 13)
-            (13, 'Gastos de Ventas'),
-            (13, 'Gastos de Administración'),
+            (13, '5.2.1.000', 'Gastos de Ventas'),
+            (13, '5.2.2.100', 'Gastos de Administración'),
             
             # OTROS GASTOS Y PÉRDIDAS (id_rubro = 14)
-            (14, 'Otros Gastos y Pérdidas'),
+            (14, '5.3.1.000', 'Otros Gastos y Pérdidas'),
             
             # CUENTAS DE ORDEN DEUDORAS (id_rubro = 15)
-            (15, 'Cuentas de Orden Deudoras'),
+            (15, '6.1.1.000', 'Cuentas de Orden Deudoras'),
             
             # CUENTAS DE ORDEN ACREEDORAS (id_rubro = 16)
-            (16, 'Cuentas de Orden Acreedoras')
+            (16, '6.2.1.000', 'Cuentas de Orden Acreedoras')
         ]
-        cursor.executemany("INSERT OR IGNORE INTO generico (id_rubro, nombre_generico) VALUES (?, ?)", genericos)
+        cursor.executemany(
+            "INSERT OR IGNORE INTO generico (id_rubro, numero_cuenta, nombre_generico) VALUES (?, ?, ?)",
+            genericos,
+        )
         print("✅ Tabla GENERICO poblada")
         
         conn.commit()
@@ -449,8 +479,8 @@ def poblar_cuentas_contables(nombre_db):
         
         cursor.executemany("""
             INSERT OR IGNORE INTO cuenta_contable 
-            (id_generico, descripcion, nombre_cuenta, codigo_cuenta,id_plan_cuenta) 
-            VALUES (?, ?, ?, ?,0)
+            (id_generico, descripcion, nombre_cuenta, codigo_cuenta) 
+            VALUES (?, ?, ?, ?)
         """, cuentas)
         
         conn.commit()

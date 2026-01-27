@@ -92,8 +92,11 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
     # Configurar tipos
     tipo_menu.items = [
         ft.PopupMenuItem(
-            content=t.nombre_tipo_cuenta,
-            data={"id": t.id_tipo_cuenta, "nombre": t.nombre_tipo_cuenta},
+            content=ft.Row([
+                ft.Text(t.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                ft.Text(t.nombre_tipo_cuenta, color=ft.Colors.BLACK),
+            ], spacing=8),
+            data={"id": t.id_tipo_cuenta, "nombre": t.nombre_tipo_cuenta, "numero": t.numero_cuenta},
             on_click=lambda e, t=t: select_account_type(e.control.data)
         ) for t in tipocuentas
     ]
@@ -136,7 +139,7 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
     def select_account_type(data):
         print(f"🔴 select_account_type llamado: {data}")
         selected_account_type.update(data)
-        tipo_menu.content.content.controls[0].value = data["nombre"]
+        tipo_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         tipo_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         
         reset_rubro()
@@ -147,8 +150,11 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
             
             rubro_menu.items = [
                 ft.PopupMenuItem(
-                    content=r.nombre_rubro,
-                    data={"id": r.id_rubro, "nombre": r.nombre_rubro},
+                    content=ft.Row([
+                        ft.Text(r.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                        ft.Text(r.nombre_rubro, color=ft.Colors.BLACK),
+                    ], spacing=8),
+                    data={"id": r.id_rubro, "nombre": r.nombre_rubro, "numero": r.numero_cuenta},
                     on_click=lambda e, r=r: select_rubro(e.control.data)
                 ) for r in rubros
             ]
@@ -163,7 +169,7 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
     def select_rubro(data):
         print(f"🔴 select_rubro llamado: {data}")
         selected_rubro.update(data)
-        rubro_menu.content.content.controls[0].value = data["nombre"]
+        rubro_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         rubro_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         
         reset_generico()
@@ -174,8 +180,11 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
             
             generico_menu.items = [
                 ft.PopupMenuItem(
-                    content=g.nombre_generico,
-                    data={"id": g.id_generico, "nombre": g.nombre_generico},
+                    content=ft.Row([
+                        ft.Text(g.numero_cuenta, weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
+                        ft.Text(g.nombre_generico, color=ft.Colors.BLACK),
+                    ], spacing=8),
+                    data={"id": g.id_generico, "nombre": g.nombre_generico, "numero": g.numero_cuenta},
                     on_click=lambda e, g=g: select_generico(e.control.data)
                 ) for g in genericos
             ]
@@ -187,14 +196,48 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
         except Exception as ex:
             print(f"🔴 ERROR en select_rubro: {ex}")
 
+    codigo_sugerido_text = ft.Text("Código sugerido: -", color=ft.Colors.GREY_700)
+    codigo_sugerido_val = {"value": None}
+
     def select_generico(data):
         print(f"🔴 select_generico llamado: {data}")
         selected_generico.update(data)
-        generico_menu.content.content.controls[0].value = data["nombre"]
+        generico_menu.content.content.controls[0].value = f"{data['numero']} - {data['nombre']}"
         generico_menu.content.border = ft.border.all(1, ft.Colors.BLUE)
         
         cuenta_field.disabled = False
         descripcion_field.disabled = False
+        # Calcular código sugerido: tipo.rubro.genérico.###
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT MAX(codigo_cuenta) FROM cuenta_contable WHERE id_generico = ?",
+                (int(data["id"]),)
+            )
+            ultimo = cur.fetchone()[0]
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        tipo_id = int(selected_account_type["id"]) if selected_account_type["id"] else 0
+        rubro_id = int(selected_rubro["id"]) if selected_rubro["id"] else 0
+        gen_id = int(selected_generico["id"]) if selected_generico["id"] else 0
+        base = f"{tipo_id}.{rubro_id}.{gen_id}"
+        sugerido = None
+        if ultimo:
+            parts = str(ultimo).split('.')
+            if len(parts) == 4:
+                try:
+                    nxt = int(parts[3]) + 1
+                except Exception:
+                    nxt = 1
+                sugerido = f"{parts[0]}.{parts[1]}.{parts[2]}.{nxt:03d}"
+        if not sugerido:
+            sugerido = f"{base}.001"
+        codigo_sugerido_val["value"] = sugerido
+        codigo_sugerido_text.value = f"Código sugerido: {sugerido}"
         page.update()
         print("🔴 Campos de cuenta habilitados")
 
@@ -215,26 +258,14 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
                 return
             descripcion = (descripcion_field.value or "").strip()
 
-            # Sugerir/obtener codigo_cuenta
-            codigo = None
+            # Usar código sugerido calculado
+            codigo = codigo_sugerido_val.get("value")
             conn = sqlite3.connect(db_path, timeout=5)
             conn.execute("PRAGMA busy_timeout=3000")
             try:
                 cur = conn.cursor()
-                cur.execute(
-                    "SELECT codigo_cuenta FROM cuenta_contable WHERE id_generico = ? ORDER BY codigo_cuenta DESC",
-                    (int(selected_generico["id"]),)
-                )
-                rows = cur.fetchall()
-                if rows:
-                    # Tomar el mayor código del mismo genérico e incrementar sufijo
-                    top_code = rows[0][0] or ""
-                    m = re.match(r"^(\d+\.\d+\.\d+)\.(\d+)$", top_code)
-                    if m:
-                        prefix, num = m.group(1), int(m.group(2))
-                        codigo = f"{prefix}.{num+1:03d}"
                 if not codigo:
-                    # Fallback mínimo si no hay anteriores: construir un prefijo con IDs
+                    # Fallback mínimo si no hay sugerido
                     tipo_id = int(selected_account_type["id"]) if selected_account_type["id"] else 0
                     rubro_id = int(selected_rubro["id"]) if selected_rubro["id"] else 0
                     gen_id = int(selected_generico["id"]) if selected_generico["id"] else 0
@@ -287,6 +318,7 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
                 rubro_menu,
                 ft.Text("Genérico:", weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
                 generico_menu,
+                codigo_sugerido_text,
                 ft.Text("Cuenta Contable:", weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
                 cuenta_field,
                 ft.Text("Descripción:", weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),

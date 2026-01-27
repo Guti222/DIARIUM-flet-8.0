@@ -9,9 +9,7 @@ def resource_path(relative_path: str) -> str:
     except Exception:
         base_path = os.path.abspath(os.getcwd())
     return os.path.join(base_path, relative_path)
-#from src.ui.pages.account_list_page.account_list_page import account_list_page
 from src.ui.pages.menu_page.menu_page import menu_page
-#from src.ui.pages.book_journal_page.book_journal_page import book_journal_page
 from data.database.estructuraBD import (
     crear_estructura_db,
     poblar_tablas_catalogo,

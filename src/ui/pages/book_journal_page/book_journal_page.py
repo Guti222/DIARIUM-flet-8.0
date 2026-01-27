@@ -375,7 +375,7 @@ def contenido_mayor(page: ft.Page, libro: LibroDiario):
         expand=True,
     )
     
-def create_journal_book(empresa: str = "", contador: str = "", anio: str = "", mes: str = "", plan_id: int = 0) -> LibroDiario:
+def create_journal_book(empresa: str = "", contador: str = "", anio: str = "", mes: str = "", plan_id: int = 0, origen: str = "creado", fecha_importacion: str | None = None) -> LibroDiario:
     # Map month name to id if possible
     month_map = {
         "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
@@ -404,13 +404,16 @@ def create_journal_book(empresa: str = "", contador: str = "", anio: str = "", m
         ano=ano_int,
         id_mes=id_mes,
         id_plan_cuenta=plan_id,
+        origen=origen or "creado",
+        fecha_importacion=fecha_importacion,
     )
 
     return libro
 
-def agregar_libro(libro: LibroDiario, path_bd: str):
-    # Inserta el libro en la tabla correcta (`libro_diario`) solo si no existe.
-    # Añade reintentos para evitar errores de 'database is locked'.
+def agregar_libro(libro: LibroDiario, path_bd: str, allow_duplicates: bool = False):
+    # Inserta el libro en la tabla `libro_diario`.
+    # Si allow_duplicates=False (por defecto), evita duplicar por misma empresa/año/mes/plan/contador.
+    # Si allow_duplicates=True, siempre crea un nuevo registro.
     attempts = 0
     max_attempts = 5
     wait_seconds = 0.3
@@ -422,18 +425,19 @@ def agregar_libro(libro: LibroDiario, path_bd: str):
             conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
 
-            cursor.execute(
-                "SELECT id_libro_diario FROM libro_diario WHERE id_mes = ? AND ano = ? AND nombre_empresa = ? AND contador = ? AND COALESCE(id_plan_cuenta, 0) = ?",
-                (libro.id_mes, libro.ano, libro.nombre_empresa, libro.contador, int(libro.id_plan_cuenta or 0))
-            )
-            existing = cursor.fetchone()
-            if existing:
-                print(f"El libro ya existe (id={existing[0]}). No se creará otro.")
-                return existing[0]
+            if not allow_duplicates:
+                cursor.execute(
+                    "SELECT id_libro_diario FROM libro_diario WHERE id_mes = ? AND ano = ? AND nombre_empresa = ? AND contador = ? AND COALESCE(id_plan_cuenta, 0) = ?",
+                    (libro.id_mes, libro.ano, libro.nombre_empresa, libro.contador, int(libro.id_plan_cuenta or 0))
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    print(f"El libro ya existe (id={existing[0]}). No se creará otro.")
+                    return existing[0]
 
             cursor.execute(
-                "INSERT INTO libro_diario (id_mes, ano, contador, nombre_empresa, total_debe, total_haber, id_plan_cuenta) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (libro.id_mes, libro.ano, libro.contador, libro.nombre_empresa, 0.0, 0.0, int(libro.id_plan_cuenta or 0))
+                "INSERT INTO libro_diario (id_mes, ano, contador, nombre_empresa, total_debe, total_haber, id_plan_cuenta, origen, fecha_importacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (libro.id_mes, libro.ano, libro.contador, libro.nombre_empresa, 0.0, 0.0, int(libro.id_plan_cuenta or 0), libro.origen or "creado", libro.fecha_importacion)
             )
             conn.commit()
             new_id = cursor.lastrowid

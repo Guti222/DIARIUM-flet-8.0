@@ -13,8 +13,8 @@ def obtenerTodasTipoCuentas(nombre_bd: str) -> List[TipoCuenta]:
     try:
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
-        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta FROM tipo_cuenta")
-        return [TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1]) for row in cursor.fetchall()]
+        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta")
+        return [TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2]) for row in cursor.fetchall()]
     
     except Error as e:
         print(f"Database error: {e}")
@@ -30,22 +30,23 @@ def obtenerTipoCuenta(nombre_bd: str, id_tipo_cuenta: int) -> Optional[TipoCuent
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id_tipo_cuenta, nombre_tipo_cuenta FROM tipo_cuenta WHERE id_tipo_cuenta = ?", 
+            "SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta WHERE id_tipo_cuenta = ?", 
             (id_tipo_cuenta,)
         )
         row = cursor.fetchone()
         
         if row:
-            return TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1])
+            return TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2])
         return None
 
     except Error as e:
         print(f"Database error: {e}")
-        return None  # Cambiado de [] a None para coincidir con el tipo de retorno
+        return None
     
     finally:
         if conn:
             conn.close()
+
 
 def obtenerTodosRubroPorTipoCuenta(nombre_bd: str, id_tipo_cuenta: int) -> List[Rubro]:
     conn = None
@@ -53,10 +54,10 @@ def obtenerTodosRubroPorTipoCuenta(nombre_bd: str, id_tipo_cuenta: int) -> List[
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id_rubro, id_tipo_cuenta, nombre_rubro FROM rubro WHERE id_tipo_cuenta = ?", 
+            "SELECT id_rubro, id_tipo_cuenta, nombre_rubro, numero_cuenta FROM rubro WHERE id_tipo_cuenta = ?", 
             (id_tipo_cuenta,)
         )
-        return [Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2]) for row in cursor.fetchall()]
+        return [Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2], numero_cuenta=row[3]) for row in cursor.fetchall()]
     
     except Error as e:
         print(f"Database error: {e}")
@@ -72,10 +73,10 @@ def obtenerTodosGenericoPorRubro(nombre_bd: str, id_rubro: int) -> List[Generico
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id_generico, id_rubro, nombre_generico FROM generico WHERE id_rubro = ?", 
+            "SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico WHERE id_rubro = ?", 
             (id_rubro,)
         )
-        return [Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2]) for row in cursor.fetchall()]
+        return [Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2], numero_cuenta=row[3]) for row in cursor.fetchall()]
     
     except Error as e:
         print(f"Database error: {e}")
@@ -119,23 +120,23 @@ def obtenerTodasCuentasContables(nombre_bd: str) -> List[CuentaContable]:
         cursor = conn.cursor()
         # Para mostrar información jerárquica (tipo/rubro/generico)
         # cargamos primero los mapas de TipoCuenta, Rubro y Generico
-        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta FROM tipo_cuenta")
-        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1]) for row in cursor.fetchall()}
+        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta")
+        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2]) for row in cursor.fetchall()}
 
-        cursor.execute("SELECT id_rubro, id_tipo_cuenta, nombre_rubro FROM rubro")
+        cursor.execute("SELECT id_rubro, id_tipo_cuenta, nombre_rubro, numero_cuenta FROM rubro")
         rubros = {}
         for row in cursor.fetchall():
-            id_rubro, id_tipo_cuenta, nombre_rubro = row
-            rubro = Rubro(id_rubro=id_rubro, id_tipo_cuenta=id_tipo_cuenta, nombre_rubro=nombre_rubro)
+            id_rubro, id_tipo_cuenta, nombre_rubro, numero_cuenta = row
+            rubro = Rubro(id_rubro=id_rubro, id_tipo_cuenta=id_tipo_cuenta, nombre_rubro=nombre_rubro, numero_cuenta=numero_cuenta)
             # enlazar tipo si existe
             rubro.tipo_cuenta = tipos.get(id_tipo_cuenta)
             rubros[id_rubro] = rubro
 
-        cursor.execute("SELECT id_generico, id_rubro, nombre_generico FROM generico")
+        cursor.execute("SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico")
         genericos = {}
         for row in cursor.fetchall():
-            id_generico, id_rubro, nombre_generico = row
-            generico = Generico(id_generico=id_generico, id_rubro=id_rubro, nombre_generico=nombre_generico)
+            id_generico, id_rubro, nombre_generico, numero_cuenta = row
+            generico = Generico(id_generico=id_generico, id_rubro=id_rubro, nombre_generico=nombre_generico, numero_cuenta=numero_cuenta)
             # enlazar rubro si existe
             generico.rubro = rubros.get(id_rubro)
             genericos[id_generico] = generico
@@ -172,45 +173,54 @@ def obtenerTodasCuentasContables(nombre_bd: str) -> List[CuentaContable]:
 # funciones de acceso a datos deben hacerse desde la lógica de la app.
 
 def obtenerCuentasContablesPorPlanCuenta(nombre_bd: str, id_plan_cuenta: int) -> List[CuentaContable]:
-    """Obtiene cuentas contables filtradas por plan de cuenta incluyendo relaciones jerárquicas.
-
-    Carga mapas de TipoCuenta, Rubro y Generico para enlazar cada CuentaContable y permitir
-    acceder a propiedades derivadas (ruta_completa, nombre_rubro, etc.).
-    """
+    """Obtiene cuentas contables filtradas por plan de cuenta usando la relación
+    tipo_cuenta -> rubro -> generico -> cuenta_contable. """
     conn = None
     try:
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
 
-        # Mapas de tipos
-        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta FROM tipo_cuenta")
-        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1]) for row in cursor.fetchall()}
+        # Mapas de tipos del plan
+        cursor.execute(
+            "SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta WHERE id_plan_cuenta = ?",
+            (id_plan_cuenta,)
+        )
+        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2]) for row in cursor.fetchall()}
 
-        # Mapas de rubros
-        cursor.execute("SELECT id_rubro, id_tipo_cuenta, nombre_rubro FROM rubro")
+        if not tipos:
+            return []
+
+        # Rubros vinculados a los tipos del plan
+        cursor.execute(
+            "SELECT id_rubro, id_tipo_cuenta, nombre_rubro, numero_cuenta FROM rubro WHERE id_tipo_cuenta IN (" + ",".join([str(tid) for tid in tipos.keys()]) + ")"
+        )
         rubros = {}
         for row in cursor.fetchall():
-            r = Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2])
+            r = Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2], numero_cuenta=row[3])
             r.tipo_cuenta = tipos.get(row[1])
             rubros[row[0]] = r
 
-        # Mapas de genéricos
-        cursor.execute("SELECT id_generico, id_rubro, nombre_generico FROM generico")
+        # Genéricos vinculados a esos rubros
+        if rubros:
+            cursor.execute(
+                "SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico WHERE id_rubro IN (" + ",".join([str(rid) for rid in rubros.keys()]) + ")"
+            )
+        else:
+            cursor.execute("SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico WHERE 1=0")
         genericos = {}
         for row in cursor.fetchall():
-            g = Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2])
+            g = Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2], numero_cuenta=row[3])
             g.rubro = rubros.get(row[1])
             genericos[row[0]] = g
 
-        # Cuentas filtradas por plan
-        cursor.execute(
-            """
-            SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta
-            FROM cuenta_contable
-            WHERE id_plan_cuenta = ?
-            """,
-            (id_plan_cuenta,)
-        )
+        # Cuentas cuyo genérico pertenece al plan
+        if genericos:
+            cursor.execute(
+                "SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta FROM cuenta_contable WHERE id_generico IN (" + ",".join([str(gid) for gid in genericos.keys()]) + ")"
+            )
+        else:
+            cursor.execute("SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta FROM cuenta_contable WHERE 1=0")
+
         cuentas = []
         for row in cursor.fetchall():
             cuenta = CuentaContable(
@@ -218,7 +228,7 @@ def obtenerCuentasContablesPorPlanCuenta(nombre_bd: str, id_plan_cuenta: int) ->
                 id_generico=row[1],
                 nombre_cuenta=row[2],
                 descripcion=row[3],
-                codigo_cuenta=row[4]
+                codigo_cuenta=row[4],
             )
             if row[1] in genericos:
                 cuenta.generico = genericos[row[1]]
@@ -237,7 +247,7 @@ def obtenerCuentaContablesPorPlanCuenta(nombre_bd: str, id_plan_cuenta: int) -> 
 
 def obtenerCuentasContablesGenerales(nombre_bd: str) -> List[CuentaContable]:
     """
-    Obtiene cuentas del plan 'General': id_plan_cuenta = 0 o NULL.
+    Obtiene cuentas del plan 'General': tipos con id_plan_cuenta = 0.
     Incluye relaciones (tipo, rubro, genérico) para UI.
     """
     conn = None
@@ -245,35 +255,43 @@ def obtenerCuentasContablesGenerales(nombre_bd: str) -> List[CuentaContable]:
         conn = sqlite3.connect(nombre_bd)
         cursor = conn.cursor()
 
-        # Mapas de tipos
-        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta FROM tipo_cuenta")
-        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1]) for row in cursor.fetchall()}
+        # Tipos del plan general (id_plan_cuenta = 0)
+        cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta WHERE id_plan_cuenta = 0")
+        tipos = {row[0]: TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2]) for row in cursor.fetchall()}
 
-        # Mapas de rubros
-        cursor.execute("SELECT id_rubro, id_tipo_cuenta, nombre_rubro FROM rubro")
+        if not tipos:
+            return []
+
+        # Rubros asociados
+        cursor.execute(
+            "SELECT id_rubro, id_tipo_cuenta, nombre_rubro, numero_cuenta FROM rubro WHERE id_tipo_cuenta IN (" + ",".join([str(tid) for tid in tipos.keys()]) + ")"
+        )
         rubros = {}
         for row in cursor.fetchall():
-            r = Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2])
+            r = Rubro(id_rubro=row[0], id_tipo_cuenta=row[1], nombre_rubro=row[2], numero_cuenta=row[3])
             r.tipo_cuenta = tipos.get(row[1])
             rubros[row[0]] = r
 
-        # Mapas de genéricos
-        cursor.execute("SELECT id_generico, id_rubro, nombre_generico FROM generico")
+        # Genéricos asociados
+        if rubros:
+            cursor.execute(
+                "SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico WHERE id_rubro IN (" + ",".join([str(rid) for rid in rubros.keys()]) + ")"
+            )
+        else:
+            cursor.execute("SELECT id_generico, id_rubro, nombre_generico, numero_cuenta FROM generico WHERE 1=0")
         genericos = {}
         for row in cursor.fetchall():
-            g = Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2])
+            g = Generico(id_generico=row[0], id_rubro=row[1], nombre_generico=row[2], numero_cuenta=row[3])
             g.rubro = rubros.get(row[1])
             genericos[row[0]] = g
 
-        # Cuentas del plan general (id=0) o sin asignación (NULL)
-        cursor.execute(
-            """
-            SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta
-            FROM cuenta_contable
-            WHERE id_plan_cuenta = 0 OR id_plan_cuenta IS NULL
-            ORDER BY codigo_cuenta ASC
-            """
-        )
+        # Cuentas cuyo genérico pertenece al plan general
+        if genericos:
+            cursor.execute(
+                "SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta FROM cuenta_contable WHERE id_generico IN (" + ",".join([str(gid) for gid in genericos.keys()]) + ") ORDER BY codigo_cuenta ASC"
+            )
+        else:
+            cursor.execute("SELECT id_cuenta_contable, id_generico, nombre_cuenta, descripcion, codigo_cuenta FROM cuenta_contable WHERE 1=0")
         cuentas: List[CuentaContable] = []
         for row in cursor.fetchall():
             cuenta = CuentaContable(
