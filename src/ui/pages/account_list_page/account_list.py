@@ -28,6 +28,7 @@ class AccountListView:
         self._rubros_summary: list[dict] = []
         self._genericos_summary: list[dict] = []
         self.view_mode = "cuentas"  # cuentas|tipos|rubros|genericos
+        self.tipo_filter: str = ""
         self.last_filter_text: str = ""
         self.page_size: int = 50
         self.visible_count: int = self.page_size
@@ -189,6 +190,12 @@ class AccountListView:
         self.account_list.controls = items
         self.account_list.update()
 
+    def set_tipo_filter(self, tipo_nombre: str | None):
+        """Aplica filtro estricto por nombre de tipo de cuenta."""
+        self.tipo_filter = (tipo_nombre or "").strip().lower()
+        self.visible_count = self.page_size
+        self.filter_accounts(self.last_filter_text, force=True)
+
     def filter_by_account_plant(self, plan_cuenta: str):
         """Filtra las cuentas por cual plan de cuenta pertenecen"""
         self.cuentas = [
@@ -272,6 +279,12 @@ class AccountListView:
     def _build_view_items(self, filter_text: str | None = None):
         ftxt = (filter_text or "").lower()
         items = []
+        tipo_val = (self.tipo_filter or "").strip().lower()
+
+        def match_tipo(nombre_tipo: str) -> bool:
+            if not tipo_val:
+                return True
+            return (nombre_tipo or "").strip().lower() == tipo_val
 
         def numeric_key(val: str):
             nums = re.findall(r"\d+", val or "")
@@ -284,6 +297,8 @@ class AccountListView:
 
         if self.view_mode == "cuentas":
             data = self.cuentas
+            if tipo_val:
+                data = [c for c in data if match_tipo(c.nombre_tipo_cuenta)]
             if ftxt:
                 data = [
                     c for c in data
@@ -315,6 +330,8 @@ class AccountListView:
         if self.view_mode == "tipos":
             for idx, data in enumerate(self._tipos_summary):
                 label = f"{data['tipo'].numero_cuenta} - {data['tipo'].nombre_tipo_cuenta}"
+                if tipo_val and not match_tipo(data["tipo"].nombre_tipo_cuenta):
+                    continue
                 if ftxt and ftxt not in label.lower():
                     continue
                 items.append(
@@ -332,6 +349,9 @@ class AccountListView:
 
         if self.view_mode == "rubros":
             for idx, data in enumerate(self._rubros_summary):
+                tipo_name = getattr(getattr(data["rubro"], "tipo_cuenta", None), "nombre_tipo_cuenta", "")
+                if tipo_val and not match_tipo(tipo_name):
+                    continue
                 label = f"{data['rubro'].numero_cuenta} - {data['rubro'].nombre_rubro}"
                 if ftxt and ftxt not in label.lower():
                     continue
@@ -349,6 +369,13 @@ class AccountListView:
 
         if self.view_mode == "genericos":
             for idx, data in enumerate(self._genericos_summary):
+                tipo_name = getattr(
+                    getattr(getattr(data["generico"], "rubro", None), "tipo_cuenta", None),
+                    "nombre_tipo_cuenta",
+                    "",
+                )
+                if tipo_val and not match_tipo(tipo_name):
+                    continue
                 label = f"{data['generico'].numero_cuenta} - {data['generico'].nombre_generico}"
                 if ftxt and ftxt not in label.lower():
                     continue

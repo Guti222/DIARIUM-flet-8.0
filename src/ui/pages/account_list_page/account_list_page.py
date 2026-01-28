@@ -9,38 +9,38 @@ from src.ui.pages.account_list_page.account_list import AccountListView
 from .create_account_dialog import create_account_dialog
 from src.utils.paths import get_db_path
 from data.models.plan_cuenta import PlanCuenta
-from data.planCuentasOps import crear_plan_cuenta, copiar_cuentas_de_plan
 from src.ui.pages.account_list_page.dialogs.create_catalog_dialog import (
     open_create_tipo_dialog,
     open_create_rubro_dialog,
     open_create_generico_dialog,
 )
-#guty
+
+# --- REFERENCIAS GLOBALES ---
+# Usamos estas referencias para poder actualizar la UI desde el hilo de carga
+account_view_container = ft.Container(expand=True)
+header_container_global = ft.Container()
+account_list_view_ref = [None] 
+
 def header_widget(page: ft.Page, back_action=None):
     def go_back(_e=None):
-        # Si se pasó una acción explícita de retorno, usarla primero
         if callable(back_action):
             try:
                 back_action()
                 return
-            except Exception:
-                pass
-        # Intentar regresar a la ruta anterior si viene en query string
+            except Exception: pass
         rt = None
         try:
             if page.route and "?" in page.route:
                 query = page.route.split("?", 1)[1]
                 params = urllib.parse.parse_qs(query)
                 rt = params.get("return_to", [None])[0]
-                if rt:
-                    rt = urllib.parse.unquote(rt)
-        except Exception:
-            rt = None
+                if rt: rt = urllib.parse.unquote(rt)
+        except Exception: rt = None
+
         if rt:
             page.go(rt)
         else:
             try:
-                # En la navegación sin router, reconstruir el menú principal manualmente
                 from src.ui.pages.menu_page.menu_page import menu_page as menu_view
                 page.clean()
                 page.add(menu_view(page))
@@ -51,295 +51,190 @@ def header_widget(page: ft.Page, back_action=None):
     return ft.Container(
         padding=ft.padding.symmetric(vertical=8, horizontal=12),
         content=ft.Row([
-            ft.IconButton(
-                icon=ft.Icons.ARROW_BACK,
-                icon_color=ft.Colors.WHITE,
-                on_click=go_back
-            ),
+            ft.IconButton(icon=ft.Icons.ARROW_BACK, icon_color=ft.Colors.WHITE, on_click=go_back),
             ft.Text("Plan de Cuentas", size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
         ], alignment=ft.MainAxisAlignment.START),
         bgcolor=ft.Colors.BLUE_700,
-        border_radius=ft.border_radius.all(8),
+        border_radius=8,
         shadow=ft.BoxShadow(spread_radius=1, blur_radius=12, color=ft.Colors.BLUE_200, offset=ft.Offset(0, 2)),
     )
 
 def title_widget():
     return ft.Container(
-        padding=ft.padding.all(12),
+        padding=12,
         content=ft.Row([
             ft.Icon(ft.Icons.ACCOUNT_BALANCE, color=ft.Colors.BLUE_800, size=28),
-            ft.Text("Lista de Plan de Cuentas", size=26, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
+            ft.Text("Lista de Plan de Cuentas", size=26, weight="bold", color=ft.Colors.BLUE_800),
         ], spacing=10),
     )
 
+# --- BOTONES DE ACCIÓN ---
 def add_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton(
-        "Agregar Nueva Cuenta",
-        on_click=lambda e: create_account_dialog(page, refresh_callback=refresh_callback),
-        icon=ft.Icons.ADD,
-        bgcolor=ft.Colors.BLUE,
-        foreground_color=ft.Colors.WHITE,
-        tooltip="Crear cuenta contable"
-    )
+    return ft.FloatingActionButton("Cuenta", on_click=lambda e: create_account_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.ADD, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
 
 def add_tipo_button_widget(page: ft.Page, refresh_callback, plan_id: int | None):
-    return ft.FloatingActionButton(
-        "Agregar Tipo",
-        on_click=lambda e: open_create_tipo_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id),
-        icon=ft.Icons.CATEGORY,
-        bgcolor=ft.Colors.BLUE,
-        foreground_color=ft.Colors.WHITE,
-        tooltip="Crear tipo de cuenta",
-    )
+    return ft.FloatingActionButton("Tipo", on_click=lambda e: open_create_tipo_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id), icon=ft.Icons.CATEGORY, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
 
 def add_rubro_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton(
-        "Agregar Rubro",
-        on_click=lambda e: open_create_rubro_dialog(page, refresh_callback=refresh_callback),
-        icon=ft.Icons.LIST,
-        bgcolor=ft.Colors.BLUE,
-        foreground_color=ft.Colors.WHITE,
-        tooltip="Crear rubro",
-    )
+    return ft.FloatingActionButton("Rubro", on_click=lambda e: open_create_rubro_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.LIST, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
 
 def add_generico_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton(
-        "Agregar Genérico",
-        on_click=lambda e: open_create_generico_dialog(page, refresh_callback=refresh_callback),
-        icon=ft.Icons.LABEL,
-        bgcolor=ft.Colors.BLUE,
-        foreground_color=ft.Colors.WHITE,
-        tooltip="Crear genérico",
-    )
-    
-def search_widget( account_list_view:AccountListView):
-    search_field = ft.TextField(
-        label="Buscar cuenta...",
-        prefix_icon=ft.Icons.SEARCH,
-        border=ft.border.all(color=ft.Colors.BLUE_200),
-        color=ft.Colors.BLACK,
-        border_radius=8,
-        width=300,
-    )
-    
-    return ft.Container(
-        content=ft.Row([
-            search_field,
-            ft.ElevatedButton(
-                "Buscar",
-                on_click=lambda e: account_list_view.filter_accounts(search_field.value),
-                bgcolor=ft.Colors.BLUE,
-                color=ft.Colors.WHITE,
-                icon=ft.Icons.SEARCH,
-            )
-        ], spacing=10)
-    )
-    
+    return ft.FloatingActionButton("Genérico", on_click=lambda e: open_create_generico_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.LABEL, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
 
-def filters_widget(account_type, account_list_view: AccountListView, plan_cuentas: list[PlanCuenta], header_container: ft.Container):
-    # Construir lista de opciones (valor: nombre_tipo_cuenta)
-    optionsTipoCuenta = [ft.dropdown.Option(key="", text="TODOS")]
-    optionsTipoCuenta += [
-        ft.dropdown.Option(key=account.nombre_tipo_cuenta, text=account.nombre_tipo_cuenta)
-        for account in account_type
-    ]
-
-    optionsVista = [
-        ft.dropdown.Option(key="cuentas", text="Cuentas contables"),
-        ft.dropdown.Option(key="tipos", text="Tipos de cuenta"),
-        ft.dropdown.Option(key="rubros", text="Rubros"),
-        ft.dropdown.Option(key="genericos", text="Genéricos"),
-    ]
-
-    def _tipo_on_tipo_change(e):
-        val = e.control.value
-        try:
-            sval = str(val).strip()
-        except Exception:
-            sval = ""
-
-        if not sval or sval.upper() == "TODOS":
-            account_list_view.filter_accounts("", force=True)
-        else:
-            account_list_view.filter_accounts(sval, force=True)
-
-    def _vista_on_change(e):
-        val = e.control.value or "cuentas"
-        account_list_view.set_view_mode(val)
-        account_list_view.filter_accounts("", force=True)
-        try:
-            header_container.content = header_account_List_by_mode(val)
-            header_container.update()
-        except Exception:
-            pass
-
-    tipo_dropdown = ft.Dropdown(
-        options=optionsTipoCuenta,
-        label="Tipo de Cuenta",
-        bgcolor=ft.Colors.WHITE,
-        color=ft.Colors.BLACK,
-        text_style=ft.TextStyle(color=ft.Colors.BLACK),
-        width=300,
-        value="",
-    )
-    tipo_dropdown.on_text_change = _tipo_on_tipo_change
-
-    vista_dropdown = ft.Dropdown(
-        options=optionsVista,
-        label="Vista",
-        bgcolor=ft.Colors.WHITE,
-        color=ft.Colors.BLACK,
-        text_style=ft.TextStyle(color=ft.Colors.BLACK),
-        width=300,
-        value="cuentas",
-    )
-    vista_dropdown.on_text_change = _vista_on_change
-
-    return ft.Container(
-        padding=ft.padding.all(12),
-        bgcolor=ft.Colors.BLUE_50,
-        border=ft.border.all(1, ft.Colors.BLUE_200),
-        border_radius=8,
-        content=ft.Column([
-            ft.Row([
-                ft.Icon(ft.Icons.FILTER_LIST, color=ft.Colors.BLUE_800),
-                ft.Text("Filtros", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
-            ], spacing=8),
-            ft.Row([
-                vista_dropdown,
-                tipo_dropdown,
-                search_widget(account_list_view)
-            ], spacing=10)
-        ], spacing=8)
-    )
-
-
-def header_account_List():
-    return header_account_List_by_mode("cuentas")
-
-
+# --- LÓGICA DE ENCABEZADO DINÁMICO ---
 def header_account_List_by_mode(view_mode: str):
     header_bg = ft.Colors.BLUE_50
-    separator = ft.Container(width=1, bgcolor=ft.Colors.GREY_200)
-
-    def header_cell(text, expand=1):
+    sep = ft.Container(width=1, bgcolor=ft.Colors.GREY_200)
+    def cell(text, exp=1):
         return ft.Container(
-            content=ft.Text(
-                text,
-                size=12,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.BLUE_900,
-                max_lines=1,
-                overflow=ft.TextOverflow.ELLIPSIS,
-            ),
-            padding=ft.padding.only(left=12, right=12, top=12, bottom=12),
-            expand=expand,
-            bgcolor=header_bg,
+            content=ft.Text(text, size=12, weight="bold", color=ft.Colors.BLUE_900), 
+            padding=12, expand=exp, bgcolor=header_bg
         )
 
     if view_mode == "tipos":
-        cells = [
-            header_cell("Código", expand=1),
-            separator,
-            header_cell("Nombre", expand=3),
-            separator,
-            header_cell("Rubros", expand=1),
-            separator,
-            header_cell("Genéricos", expand=1),
-            separator,
-            header_cell("Cuentas", expand=1),
-        ]
+        cells = [cell("Código", 1), sep, cell("Nombre", 3), sep, cell("Rubros", 1), sep, cell("Genéricos", 1), sep, cell("Cuentas", 1)]
     elif view_mode == "rubros":
-        cells = [
-            header_cell("Código", expand=1),
-            separator,
-            header_cell("Nombre", expand=3),
-            separator,
-            header_cell("Tipo", expand=2),
-            separator,
-            header_cell("Genéricos", expand=1),
-            separator,
-            header_cell("Cuentas", expand=1),
-        ]
+        cells = [cell("Código", 1), sep, cell("Nombre", 3), sep, cell("Tipo", 2), sep, cell("Genéricos", 1), sep, cell("Cuentas", 1)]
     elif view_mode == "genericos":
-        cells = [
-            header_cell("Código", expand=1),
-            separator,
-            header_cell("Nombre", expand=3),
-            separator,
-            header_cell("Tipo", expand=2),
-            separator,
-            header_cell("Rubro", expand=2),
-            separator,
-            header_cell("Cuentas", expand=1),
-        ]
+        cells = [cell("Código", 1), sep, cell("Nombre", 3), sep, cell("Tipo", 2), sep, cell("Rubro", 2), sep, cell("Cuentas", 1)]
     else:
-        cells = [
-            header_cell("Código de Cuenta", expand=1),
-            separator,
-            header_cell("Nombre", expand=3),
-            separator,
-            header_cell("Tipo Cuenta", expand=2),
-            separator,
-            header_cell("Rubro", expand=2),
-            separator,
-            header_cell("Generico", expand=2),
-        ]
+        # Modo por defecto: cuentas
+        cells = [cell("Código", 1), sep, cell("Nombre", 3), sep, cell("Tipo Cuenta", 2), sep, cell("Rubro", 2), sep, cell("Generico", 2)]
+    
+    return ft.Row(cells, spacing=0)
 
-    return ft.Container(
-        content=ft.Row(cells, spacing=0),
-        padding=ft.padding.only(top=10, bottom=0, left=0, right=0),
-        border_radius=5,
-    )
-
-def account_list_container(account_list_view):
-    return ft.Container(
-        content=account_list_view.get_view(),
-        border=ft.border.all(1, ft.Colors.BLUE_200),
-        border_radius=8,
-        expand=True,
-        bgcolor=ft.Colors.WHITE,
-        shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color=ft.Colors.BLUE_100, offset=ft.Offset(0, 2)),
-    )
-
+# --- CONTENIDO DE LA PÁGINA ---
 def contenido(page: ft.Page, back_action=None, plan_id: int | None = None):
     db_path = get_db_path()
-    account_type: list[TipoCuenta] = obtenerTodasTipoCuentas(db_path)
-    plan_cuentas: list[PlanCuenta]= obtenerTodosPlanesCuentas(db_path)
-    account_list_view = AccountListView(db_path, page)
-    if plan_id is not None:
-        account_list_view.filter_by_account_plan_id(plan_id)
-    header_container = header_account_List()
+
+    # Dropdowns de Filtro
+    vista_dropdown = ft.Dropdown(
+        label="Seleccionar Vista", width=250, bgcolor="white", color="black", value="cuentas",
+        options=[
+            ft.dropdown.Option("cuentas", "Cuentas contables"),
+            ft.dropdown.Option("tipos", "Tipos de cuenta"),
+            ft.dropdown.Option("rubros", "Rubros"),
+            ft.dropdown.Option("genericos", "Genéricos"),
+        ]
+    )
+    
+    tipo_dropdown = ft.Dropdown(label="Filtrar por Tipo", width=250, bgcolor="white", color="black", disabled=True,)
+    search_field = ft.TextField(label="Buscar...", width=250, border_radius=8, bgcolor="white")
+
+    account_view_container.alignment = ft.MainAxisAlignment.CENTER
+    header_container_global.content = header_account_List_by_mode("cuentas")
+
+    def cargar_datos_background():
+        try:
+            # Consultas a base de datos
+            tipos_data = obtenerTodasTipoCuentas(db_path)
+            view = AccountListView(db_path, page)
+            
+            if plan_id: 
+                view.filter_by_account_plan_id(plan_id)
+            
+            account_list_view_ref[0] = view
+
+            last_vista = {"value": vista_dropdown.value}
+            last_tipo = {"value": ""}
+
+            # --- VINCULAR EVENTOS ---
+            
+            # 1. Cambio de Vista (Cuentas, Tipos, etc.)
+            def change_vista(e):
+                mode = (e.control.value or vista_dropdown.value or "cuentas")
+                if mode == last_vista["value"]:
+                    return
+                last_vista["value"] = mode
+                # Cambia el modo interno de la lista para que sepa qué datos pintar
+                view.set_view_mode(mode)
+                # Actualiza el encabezado visualmente
+                header_container_global.content = header_account_List_by_mode(mode)
+                header_container_global.update()
+                page.update()
+            
+            vista_dropdown.on_change = change_vista
+            vista_dropdown.on_text_change = change_vista
+
+            # 2. Filtro de Tipo de Cuenta
+            tipo_dropdown.options = [ft.dropdown.Option("", "TODOS")] + [
+                ft.dropdown.Option(t.nombre_tipo_cuenta, t.nombre_tipo_cuenta) for t in tipos_data
+            ]
+            tipo_dropdown.disabled = False
+            
+            def change_tipo(e):
+                val = (e.control.value or tipo_dropdown.value or "")
+                if val == last_tipo["value"]:
+                    return
+                last_tipo["value"] = val
+                view.set_tipo_filter(val if val else "")
+                page.update()
+            
+            tipo_dropdown.on_change = change_tipo
+            tipo_dropdown.on_text_change = change_tipo
+
+            # Inyectar la vista cargada en el contenedor
+            account_view_container.content = view.get_view()
+            account_view_container.alignment = None
+            page.update()
+
+        except Exception as ex:
+            print(f"Error en carga de datos: {ex}")
+            account_view_container.content = ft.Text("Error al conectar con la base de datos")
+            page.update()
+
+    # Ejecutar carga de datos en el hilo principal para asegurar eventos UI
+    cargar_datos_background()
 
     return ft.Container(
+        expand=True, padding=16,
         content=ft.Column([
             header_widget(page, back_action),
             ft.Row([
                 title_widget(),
                 ft.Container(expand=True),
                 ft.Row([
-                    add_tipo_button_widget(page, account_list_view.refresh, plan_id),
-                    add_rubro_button_widget(page, account_list_view.refresh),
-                    add_generico_button_widget(page, account_list_view.refresh),
-                    add_button_widget(page, account_list_view.refresh),
+                    add_tipo_button_widget(page, lambda: account_list_view_ref[0].refresh(), plan_id),
+                    add_rubro_button_widget(page, lambda: account_list_view_ref[0].refresh()),
+                    add_generico_button_widget(page, lambda: account_list_view_ref[0].refresh()),
+                    add_button_widget(page, lambda: account_list_view_ref[0].refresh()),
                 ], spacing=10)
-            ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            filters_widget(account_type, account_list_view, plan_cuentas, header_container),
-            header_container,
-            account_list_container(account_list_view)
-        ], expand=True, spacing=12),
-        padding=ft.padding.all(16),
-        expand=True
+            ]),
+            
+            # Panel de Control (Dropdowns y Búsqueda)
+            ft.Container(
+                padding=12, bgcolor=ft.Colors.BLUE_50, border_radius=8,
+                border=ft.border.all(1, ft.Colors.BLUE_200),
+                content=ft.Row([
+                    vista_dropdown, 
+                    tipo_dropdown, 
+                    search_field, 
+                    ft.ElevatedButton(
+                        "Buscar", 
+                        icon=ft.Icons.SEARCH, 
+                        on_click=lambda _: account_list_view_ref[0].filter_accounts(search_field.value) if account_list_view_ref[0] else None,
+                        bgcolor=ft.Colors.BLUE,
+                        color="white"
+                    )
+                ], spacing=10)
+            ),
+            
+            # Encabezado de tabla
+            header_container_global,
+            
+            # Lista de resultados
+            ft.Container(
+                content=account_view_container, 
+                expand=True, 
+                border=ft.border.all(1, ft.Colors.BLUE_200), 
+                border_radius=8, 
+                bgcolor="white"
+            )
+        ], expand=True, spacing=15)
     )
 
 def account_list_page(page: ft.Page, back_action=None, plan_id: int | None = None):
-    return ft.Stack(
-        controls=[
-            create_modern_background(page),
-            contenido(page, back_action, plan_id)
-        ],
-        expand=True
-    )
-
-
-
+    return ft.Stack([
+        create_modern_background(page), 
+        contenido(page, back_action, plan_id)
+    ], expand=True)

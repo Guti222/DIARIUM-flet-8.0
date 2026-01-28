@@ -136,31 +136,34 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
         try:
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
-            # Obtener el máximo código existente para este genérico
-            cur.execute("SELECT MAX(codigo_cuenta) FROM cuenta_contable WHERE id_generico = ?", (id_generico,))
-            ultimo_codigo = cur.fetchone()[0]
+            # Obtener todos los códigos existentes para este genérico
+            cur.execute("SELECT codigo_cuenta FROM cuenta_contable WHERE id_generico = ?", (id_generico,))
+            codigos = [row[0] for row in cur.fetchall() if row and row[0]]
         finally:
-            try: conn.close()
-            except Exception: pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
-        tipo_id = selected_tipo['id']
-        rubro_id = selected_rubro['id']
+        tipo_id = selected_tipo["id"]
+        rubro_id = selected_rubro["id"]
         base = f"{tipo_id}.{rubro_id}.{id_generico}"
 
-        if ultimo_codigo:
-            partes = str(ultimo_codigo).split('.')
-            if len(partes) == 4:
+        usados = set()
+        for codigo in codigos:
+            partes = str(codigo).split('.')
+            if len(partes) == 4 and partes[0] == str(tipo_id) and partes[1] == str(rubro_id) and partes[2] == str(id_generico):
                 try:
-                    nuevo_numero = int(partes[3]) + 1
+                    usados.add(int(partes[3]))
                 except ValueError:
-                    nuevo_numero = 1
-                sugerido = f"{partes[0]}.{partes[1]}.{partes[2]}.{nuevo_numero:03d}"
-            else:
-                # Formato inesperado, reiniciar numeración
-                sugerido = f"{base}.001"
-        else:
-            # Primera cuenta para este genérico
-            sugerido = f"{base}.001"
+                    continue
+
+        # Buscar el primer número disponible
+        nuevo_numero = 1
+        while nuevo_numero in usados:
+            nuevo_numero += 1
+
+        sugerido = f"{base}.{nuevo_numero:03d}"
 
         codigo_sugerido_text.value = f"Sugerido: {sugerido}"
         # Sólo pre-rellenar si realmente cambia de genérico respecto al original
@@ -175,7 +178,50 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
         sugerir_codigo(int(data["id"]))
         page.update()
 
-    usar_sugerido_btn = ft.TextButton("Usar sugerido", on_click=lambda e: (codigo_field.set_value(codigo_sugerido_text.value.replace("Sugerido: ", "")), page.update()))
+    def aplicar_seleccion_inicial():
+        try:
+            tipo_id = getattr(cuenta, "id_tipo_cuenta", None)
+            rubro_id = getattr(cuenta, "id_rubro", None)
+            generico_id = getattr(cuenta, "id_generico", None)
+
+            tipo_obj = next((t for t in tipos if t.id_tipo_cuenta == tipo_id), None)
+            if not tipo_obj:
+                return
+
+            select_tipo({
+                "id": tipo_obj.id_tipo_cuenta,
+                "nombre": tipo_obj.nombre_tipo_cuenta,
+                "numero": tipo_obj.numero_cuenta,
+            })
+
+            rubros = obtenerTodosRubroPorTipoCuenta(db_path, int(tipo_obj.id_tipo_cuenta))
+            rubro_obj = next((r for r in rubros if r.id_rubro == rubro_id), None)
+            if not rubro_obj:
+                return
+
+            select_rubro({
+                "id": rubro_obj.id_rubro,
+                "nombre": rubro_obj.nombre_rubro,
+                "numero": rubro_obj.numero_cuenta,
+            })
+
+            genericos = obtenerTodosGenericoPorRubro(db_path, int(rubro_obj.id_rubro))
+            generico_obj = next((g for g in genericos if g.id_generico == generico_id), None)
+            if not generico_obj:
+                return
+
+            select_generico({
+                "id": generico_obj.id_generico,
+                "nombre": generico_obj.nombre_generico,
+                "numero": generico_obj.numero_cuenta,
+            })
+        except Exception as ex:
+            print(f"Error aplicando selección inicial: {ex}")
+
+    usar_sugerido_btn = ft.TextButton(
+        "Usar sugerido",
+        on_click=lambda e: (setattr(codigo_field, "value", codigo_sugerido_text.value.replace("Sugerido: ", "")), page.update())
+    )
 
     def submit_update(e):
         nuevo_codigo = codigo_field.value.strip()
@@ -224,4 +270,5 @@ def open_edit_account_dialog(page: ft.Page, cuenta: CuentaContable, refresh_call
     )
     page.overlay.append(edit_dialog)
     edit_dialog.open = True
+    aplicar_seleccion_inicial()
     page.update()
