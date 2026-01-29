@@ -99,14 +99,23 @@ class TAccountBookCard:
                     content=ft.Container(
                         content=ft.Row([
                             ft.Text("Total", weight=ft.FontWeight.BOLD, color=azul_texto),
-                            ft.Row([
-                                ft.Text(f"Debe: {self.debe:.2f}", color=ft.Colors.GREEN_700),
-                                ft.Container(width=70),
-                                ft.Text(" | "),
-                                ft.Container(width=80),
-                                ft.Text(f"Haber: {self.haber:.2f}", color=ft.Colors.RED_700),
-                            ],)
-                        ]),
+                            ft.Container(expand=True),
+                            ft.Text(
+                                f"Debe: {self.debe:.2f}",
+                                color=ft.Colors.GREEN_700,
+                                size=12,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                            ft.Text(" | ", color=ft.Colors.GREY_600, size=12),
+                            ft.Text(
+                                f"Haber: {self.haber:.2f}",
+                                color=ft.Colors.RED_700,
+                                size=12,
+                                max_lines=1,
+                                overflow=ft.TextOverflow.ELLIPSIS,
+                            ),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         expand=True,
                     ),
                     width=400

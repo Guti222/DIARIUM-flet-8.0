@@ -207,35 +207,42 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
         
         cuenta_field.disabled = False
         descripcion_field.disabled = False
-        # Calcular código sugerido: tipo.rubro.genérico.###
+        # Calcular código sugerido: usar numeración del catálogo (numero_cuenta)
         try:
             conn = sqlite3.connect(db_path)
             cur = conn.cursor()
             cur.execute(
-                "SELECT MAX(codigo_cuenta) FROM cuenta_contable WHERE id_generico = ?",
+                "SELECT codigo_cuenta FROM cuenta_contable WHERE id_generico = ?",
                 (int(data["id"]),)
             )
-            ultimo = cur.fetchone()[0]
+            codigos = [row[0] for row in cur.fetchall() if row and row[0]]
         finally:
             try:
                 conn.close()
             except Exception:
                 pass
-        tipo_id = int(selected_account_type["id"]) if selected_account_type["id"] else 0
-        rubro_id = int(selected_rubro["id"]) if selected_rubro["id"] else 0
-        gen_id = int(selected_generico["id"]) if selected_generico["id"] else 0
-        base = f"{tipo_id}.{rubro_id}.{gen_id}"
-        sugerido = None
-        if ultimo:
-            parts = str(ultimo).split('.')
-            if len(parts) == 4:
+
+        tipo_num = (selected_account_type.get("numero") or "").split(".")[0] or "0"
+        rubro_parts = (selected_rubro.get("numero") or "").split(".")
+        rubro_num = rubro_parts[1] if len(rubro_parts) > 1 else "0"
+        gen_parts = (selected_generico.get("numero") or "").split(".")
+        gen_num = gen_parts[2] if len(gen_parts) > 2 else "0"
+
+        base = f"{tipo_num}.{rubro_num}.{gen_num}"
+
+        usados = set()
+        for codigo in codigos:
+            partes = str(codigo).split(".")
+            if len(partes) == 4 and partes[0] == tipo_num and partes[1] == rubro_num and partes[2] == gen_num:
                 try:
-                    nxt = int(parts[3]) + 1
+                    usados.add(int(partes[3]))
                 except Exception:
-                    nxt = 1
-                sugerido = f"{parts[0]}.{parts[1]}.{parts[2]}.{nxt:03d}"
-        if not sugerido:
-            sugerido = f"{base}.001"
+                    continue
+
+        nxt = 1
+        while nxt in usados:
+            nxt += 1
+        sugerido = f"{base}.{nxt:03d}"
         codigo_sugerido_val["value"] = sugerido
         codigo_sugerido_text.value = f"Código sugerido: {sugerido}"
         page.update()

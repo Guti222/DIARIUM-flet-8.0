@@ -277,7 +277,7 @@ def poblar_tablas_catalogo(nombre_db):
             
             # GASTOS DE OPERACIÓN (id_rubro = 13)
             (13, '5.2.1.000', 'Gastos de Ventas'),
-            (13, '5.2.2.100', 'Gastos de Administración'),
+            (13, '5.2.2.000', 'Gastos de Administración'),
             
             # OTROS GASTOS Y PÉRDIDAS (id_rubro = 14)
             (14, '5.3.1.000', 'Otros Gastos y Pérdidas'),
@@ -337,7 +337,7 @@ def poblar_cuentas_contables(nombre_db):
             # Otras Cuentas por Cobrar (id_generico = 4)
             (genericos['Otras Cuentas por Cobrar'], 'Funcionarios y Empleados', 'Cuentas por Cobrar Empleados', '1.1.4.001'),
             (genericos['Otras Cuentas por Cobrar'], 'Anticipos a Proveedores', 'Anticipos a Proveedores', '1.1.4.002'),
-            (genericos['Otras Cuentas por Cobrar'], 'IVA Débito Fiscal', 'IVA Débito Fiscal', '1.1.4.003'),
+            (genericos['Otras Cuentas por Cobrar'], 'IVA Crédito Fiscal', 'IVA Crédito Fiscal', '1.1.4.003'),
             
             # Inventarios (id_generico = 5)
             (genericos['Inventarios'], 'Mercancías Disponibles para la Venta', 'Inventario Mercancías', '1.1.5.001'),
@@ -390,7 +390,7 @@ def poblar_cuentas_contables(nombre_db):
             (genericos['Otras Cuentas por Pagar'], 'Cuentas por Pagar a Accionistas', 'Cuentas por Pagar Accionistas', '2.1.3.001'),
             (genericos['Otras Cuentas por Pagar'], 'Acreedores Varios', 'Acreedores Varios', '2.1.3.002'),
             (genericos['Otras Cuentas por Pagar'], 'Retenciones por Pagar (ISLR, IVA, etc.)', 'Retenciones por Pagar', '2.1.3.003'),
-            (genericos['Otras Cuentas por Pagar'], 'IVA Crédito Fiscal', 'IVA Crédito Fiscal', '2.1.3.004'),
+            (genericos['Otras Cuentas por Pagar'], 'IVA Débito Fiscal', 'IVA Débito Fiscal', '2.1.3.004'),
             
             # Impuestos por Pagar (id_generico = 14)
             (genericos['Impuestos por Pagar'], 'Impuesto sobre la Renta por Pagar', 'ISLR por Pagar', '2.1.4.001'),
@@ -423,7 +423,7 @@ def poblar_cuentas_contables(nombre_db):
             
             # Resultados del Ejercicio (id_generico = 21)
             (genericos['Resultados del Ejercicio'], 'Resultados del Ejercicio (Utilidad o Pérdida Neta)', 'Resultado Ejercicio', '3.1.3.001'),
-            (genericos['Resultados del Ejercicio'], '(-) Resultados Acumulados de Ejercicios Anteriores', 'Resultados Acumulados', '3.1.3.002'),
+            (genericos['Resultados del Ejercicio'], 'Resultados Acumulados de Ejercicios Anteriores', 'Resultados Acumulados', '3.1.3.002'),
             (genericos['Resultados del Ejercicio'], 'Resultados de Ejercicios Anteriores', 'Resultados Ejercicios Anteriores', '3.1.3.003'),
             
             # Otros Resultados Integrales (id_generico = 22)

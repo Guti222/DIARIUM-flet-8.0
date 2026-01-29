@@ -82,27 +82,26 @@ def contenido(page: ft.Page, libro: LibroDiario):
     inner = ft.Container(
         content=ft.Column([
             title_widget(),
-            ft.Row([
-                button_add_asiento(page, refresh_callback=refresh_diario, libro=libro),
-                ft.Container(expand=True),
-                title_book_journal(empresa=libro.nombre_empresa, contador=libro.contador, anio=libro.ano, mes=libro.mes),
-            ], spacing=20, vertical_alignment=ft.CrossAxisAlignment.START),
-        ], spacing=16),
-        padding=20,
+            button_add_asiento(page, refresh_callback=refresh_diario, libro=libro),
+            title_book_journal(empresa=libro.nombre_empresa, contador=libro.contador, anio=libro.ano, mes=libro.mes),
+        ], spacing=12),
+        padding=16,
         bgcolor=ft.Colors.WHITE,
-        border_radius=16,
+        border_radius=14,
         opacity=1.0,
-        width=1000,
-        shadow=ft.BoxShadow(spread_radius=1, blur_radius=18, color=ft.Colors.BLUE_200, offset=ft.Offset(0, 4)),
+        width=270,
+        height=300,
+        shadow=ft.BoxShadow(spread_radius=1, blur_radius=14, color=ft.Colors.BLUE_200, offset=ft.Offset(0, 4)),
     )
     # Wrap inner content in a fixed-width container so inner layout doesn't reflow
     # if outer container is ever animated (prevents text 'squash' on resize).
-    inner_fixed = ft.Container(content=inner, width=1000, padding=0)
+    inner_fixed = ft.Container(content=inner, width=270,height=300, padding=0)
 
     # Outer animated container (follows pattern from animatedContainer demo)
     outer = ft.Container(
         content=inner_fixed,
-        width=1000,
+        width=270,
+        height=300,
         bgcolor=ft.Colors.WHITE,
         border=ft.border.all(1, ft.Colors.GREY_300),
         padding=0,
@@ -112,11 +111,12 @@ def contenido(page: ft.Page, libro: LibroDiario):
     )
 
     # Grid container + totals; allows refreshing without route reload
-    grid_container = ft.Container(width=1000, height=340, border=ft.border.all(1, ft.Colors.BLUE_200), border_radius=12, bgcolor=ft.Colors.WHITE)
+    grid_container = ft.Container(height=650, expand=True, border=ft.border.all(1, ft.Colors.BLUE_200), border_radius=12, bgcolor=ft.Colors.WHITE)
     totals_container = ft.Container(
-        width=1000,
+        height=52,
         padding=ft.padding.symmetric(vertical=10, horizontal=12),
         border=ft.border.only(top=ft.border.BorderSide(1, ft.Colors.BLUE_200)),
+        border_radius=12,
         bgcolor=ft.Colors.WHITE,
     )
 
@@ -281,12 +281,17 @@ def contenido(page: ft.Page, libro: LibroDiario):
     render_journal_grid(do_update=False)
 
     return ft.Container(
-        content=ft.Column([
+        content=ft.Row([
             outer,
-            ft.Text("Tabla", size=20, weight=ft.FontWeight.BOLD),
-            grid_container,
-            totals_container,
-        ]),
+            ft.Container(
+                expand=True,
+                content=ft.Column([
+                    ft.Text("Tabla", size=20, weight=ft.FontWeight.BOLD),
+                    grid_container,
+                    totals_container,
+                ], spacing=10, expand=True),
+            ),
+        ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START, expand=True),
         alignment=ft.Alignment(0, -1),
         padding=ft.padding.all(20),
         expand=True

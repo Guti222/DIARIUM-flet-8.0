@@ -359,6 +359,8 @@ def menu_page(page: ft.Page):
             fondo,
             contenido,
             ft.Container(
+                right=24,
+                bottom=24,
                 content=ft.FloatingActionButton(
                     icon=ft.Icons.INFO_OUTLINE,
                     on_click=open_creators_dialog,
@@ -366,10 +368,7 @@ def menu_page(page: ft.Page):
                     foreground_color=ft.Colors.WHITE,
                     tooltip="Créditos",
                 ),
-                alignment=ft.alignment.Alignment(1, 1),
-                padding=ft.padding.only(right=24, bottom=24),
             ),
-            # Nota: loading_overlay ya está en page.overlay, no hace falta ponerlo aquí
         ],
         expand=True
     )
