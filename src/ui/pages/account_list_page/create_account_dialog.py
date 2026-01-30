@@ -7,7 +7,12 @@ import sqlite3
 import re
 from src.utils.paths import get_db_path
 from data.models.cuenta import Rubro, TipoCuenta, Generico
-from data.obtenerCuentas import obtenerTodasTipoCuentas, obtenerTodosRubroPorTipoCuenta, obtenerTodosGenericoPorRubro
+from data.obtenerCuentas import (
+    obtenerTodasTipoCuentas,
+    obtenerTodosRubroPorTipoCuenta,
+    obtenerTodosGenericoPorRubro,
+    obtenerTipoCuentasPorPlanCuenta,
+)
 
 def resource_path(relative_path: str) -> str:
     """Resolve path for PyInstaller bundles and normal runs."""
@@ -17,7 +22,7 @@ def resource_path(relative_path: str) -> str:
         base_path = os.path.abspath(os.getcwd())
     return os.path.join(base_path, relative_path)
 
-def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
+def create_account_dialog(page: ft.Page, refresh_callback: callable = None, plan_id: int | None = None):
     # DEBUG: Verificar que estamos en el lugar correcto
     print("🔴 create_account_dialog CALLED")
     
@@ -33,7 +38,10 @@ def create_account_dialog(page: ft.Page, refresh_callback: callable = None):
     
     # Cargar tipos de cuenta desde BD
     try:
-        tipocuentas = obtenerTodasTipoCuentas(db_path)
+        if plan_id is None:
+            tipocuentas = obtenerTodasTipoCuentas(db_path)
+        else:
+            tipocuentas = obtenerTipoCuentasPorPlanCuenta(db_path, int(plan_id))
         print(f"🔴 Tipos de cuenta cargados: {len(tipocuentas)}")
         for tc in tipocuentas:
             print(f"  - {tc.id_tipo_cuenta}: {tc.nombre_tipo_cuenta}")

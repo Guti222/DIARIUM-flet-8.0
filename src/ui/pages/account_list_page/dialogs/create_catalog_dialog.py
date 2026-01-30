@@ -3,7 +3,11 @@ import sqlite3
 import re
 from src.utils.paths import get_db_path
 from data.catalogoOps import crear_tipo_cuenta, crear_rubro, crear_generico
-from data.obtenerCuentas import obtenerTodasTipoCuentas, obtenerTodosRubroPorTipoCuenta
+from data.obtenerCuentas import (
+    obtenerTodasTipoCuentas,
+    obtenerTodosRubroPorTipoCuenta,
+    obtenerTipoCuentasPorPlanCuenta,
+)
 
 
 def _snack(page: ft.Page, msg: str, ok: bool):
@@ -75,9 +79,12 @@ def open_create_tipo_dialog(page: ft.Page, refresh_callback=None, plan_id: int |
     page.update()
 
 
-def open_create_rubro_dialog(page: ft.Page, refresh_callback=None):
+def open_create_rubro_dialog(page: ft.Page, refresh_callback=None, plan_id: int | None = None):
     db_path = get_db_path()
-    tipos = obtenerTodasTipoCuentas(db_path)
+    if plan_id is None:
+        tipos = obtenerTodasTipoCuentas(db_path)
+    else:
+        tipos = obtenerTipoCuentasPorPlanCuenta(db_path, int(plan_id))
 
     tipo_label = ft.Text("Seleccione tipo de cuenta", color=ft.Colors.GREY)
     tipo_menu = ft.PopupMenuButton(content=ft.Container(content=ft.Row([tipo_label, ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=ft.Colors.GREY)]), padding=10, border=ft.border.all(1, ft.Colors.GREY_400), border_radius=5, bgcolor=ft.Colors.WHITE), items=[], disabled=True)
@@ -168,9 +175,12 @@ def open_create_rubro_dialog(page: ft.Page, refresh_callback=None):
     page.update()
 
 
-def open_create_generico_dialog(page: ft.Page, refresh_callback=None):
+def open_create_generico_dialog(page: ft.Page, refresh_callback=None, plan_id: int | None = None):
     db_path = get_db_path()
-    tipos = obtenerTodasTipoCuentas(db_path)
+    if plan_id is None:
+        tipos = obtenerTodasTipoCuentas(db_path)
+    else:
+        tipos = obtenerTipoCuentasPorPlanCuenta(db_path, int(plan_id))
 
     tipo_label = ft.Text("Seleccione tipo", color=ft.Colors.GREY)
     tipo_menu = ft.PopupMenuButton(content=ft.Container(content=ft.Row([tipo_label, ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=ft.Colors.GREY)]), padding=10, border=ft.border.all(1, ft.Colors.GREY_400), border_radius=5, bgcolor=ft.Colors.WHITE), items=[], disabled=True)

@@ -24,6 +24,26 @@ def obtenerTodasTipoCuentas(nombre_bd: str) -> List[TipoCuenta]:
         if conn:
             conn.close()
 
+def obtenerTipoCuentasPorPlanCuenta(nombre_bd: str, id_plan_cuenta: int | None) -> List[TipoCuenta]:
+    conn = None
+    try:
+        conn = sqlite3.connect(nombre_bd)
+        cursor = conn.cursor()
+        if id_plan_cuenta is None:
+            cursor.execute("SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta")
+        else:
+            cursor.execute(
+                "SELECT id_tipo_cuenta, nombre_tipo_cuenta, numero_cuenta FROM tipo_cuenta WHERE id_plan_cuenta = ?",
+                (int(id_plan_cuenta),)
+            )
+        return [TipoCuenta(id_tipo_cuenta=row[0], nombre_tipo_cuenta=row[1], numero_cuenta=row[2]) for row in cursor.fetchall()]
+    except Error as e:
+        print(f"Database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 def obtenerTipoCuenta(nombre_bd: str, id_tipo_cuenta: int) -> Optional[TipoCuenta]:
     conn = None
     try:

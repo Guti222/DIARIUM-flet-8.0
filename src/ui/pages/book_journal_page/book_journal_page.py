@@ -578,8 +578,9 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
         if dest:
             path_field.value = dest
             try:
+                if export_dialog not in page.overlay:
+                    page.overlay.append(export_dialog)
                 export_dialog.open = True
-                page.dialog = export_dialog
                 page.update()
             except Exception:
                 pass
@@ -587,6 +588,13 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
             page.snack_bar = ft.SnackBar(content=ft.Text("Tkinter no está disponible"), bgcolor=ft.Colors.RED_600, duration=4000)
             page.snack_bar.open = True
             page.update()
+
+    def close_export_dialog(_e=None):
+        try:
+            export_dialog.open = False
+            page.update()
+        except Exception:
+            pass
 
     export_dialog = ft.AlertDialog(
         title=ft.Text("Exportar a Excel"),
@@ -601,10 +609,11 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
             ], tight=True, spacing=6),
         ),
         actions=[
-            ft.TextButton("Cancelar", on_click=lambda e: (setattr(export_dialog, 'open', False), page.update())),
+            ft.TextButton("Cancelar", on_click=close_export_dialog),
             ft.FilledButton("Exportar", icon=ft.Icons.FILE_DOWNLOAD, on_click=do_export),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
+        on_dismiss=close_export_dialog,
     )
 
     # Acciones del menú lateral
@@ -683,7 +692,10 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
         
     def open_export_dialog():
         try:
-            page.overlay.append(export_dialog)
+            if not (name_field.value or "").strip():
+                name_field.value = default_filename
+            if export_dialog not in page.overlay:
+                page.overlay.append(export_dialog)
             export_dialog.open = True
             page.update()
         except Exception:

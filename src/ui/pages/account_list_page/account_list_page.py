@@ -2,7 +2,7 @@ import flet as ft
 import urllib.parse
 
 from data.models.cuenta import TipoCuenta
-from data.obtenerCuentas import obtenerTodasTipoCuentas
+from data.obtenerCuentas import obtenerTodasTipoCuentas, obtenerTipoCuentasPorPlanCuenta
 from data.obternet_plan_cuentas import obtenerTodosPlanesCuentas
 from src.ui.components.backgrounds import create_modern_background
 from src.ui.pages.account_list_page.account_list import AccountListView
@@ -69,17 +69,35 @@ def title_widget():
     )
 
 # --- BOTONES DE ACCIÓN ---
-def add_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton("Cuenta", on_click=lambda e: create_account_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.ADD, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
+def add_button_widget(page: ft.Page, refresh_callback, plan_id: int | None):
+    return ft.FloatingActionButton(
+        "Cuenta",
+        on_click=lambda e: create_account_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id),
+        icon=ft.Icons.ADD,
+        bgcolor=ft.Colors.BLUE,
+        foreground_color=ft.Colors.WHITE,
+    )
 
 def add_tipo_button_widget(page: ft.Page, refresh_callback, plan_id: int | None):
     return ft.FloatingActionButton("Tipo", on_click=lambda e: open_create_tipo_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id), icon=ft.Icons.CATEGORY, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
 
-def add_rubro_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton("Rubro", on_click=lambda e: open_create_rubro_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.LIST, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
+def add_rubro_button_widget(page: ft.Page, refresh_callback, plan_id: int | None):
+    return ft.FloatingActionButton(
+        "Rubro",
+        on_click=lambda e: open_create_rubro_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id),
+        icon=ft.Icons.LIST,
+        bgcolor=ft.Colors.BLUE,
+        foreground_color=ft.Colors.WHITE,
+    )
 
-def add_generico_button_widget(page: ft.Page, refresh_callback):
-    return ft.FloatingActionButton("Genérico", on_click=lambda e: open_create_generico_dialog(page, refresh_callback=refresh_callback), icon=ft.Icons.LABEL, bgcolor=ft.Colors.BLUE, foreground_color=ft.Colors.WHITE)
+def add_generico_button_widget(page: ft.Page, refresh_callback, plan_id: int | None):
+    return ft.FloatingActionButton(
+        "Genérico",
+        on_click=lambda e: open_create_generico_dialog(page, refresh_callback=refresh_callback, plan_id=plan_id),
+        icon=ft.Icons.LABEL,
+        bgcolor=ft.Colors.BLUE,
+        foreground_color=ft.Colors.WHITE,
+    )
 
 # --- LÓGICA DE ENCABEZADO DINÁMICO ---
 def header_account_List_by_mode(view_mode: str):
@@ -127,8 +145,11 @@ def contenido(page: ft.Page, back_action=None, plan_id: int | None = None):
     def cargar_datos_background():
         try:
             # Consultas a base de datos
-            tipos_data = obtenerTodasTipoCuentas(db_path)
-            view = AccountListView(db_path, page)
+            if plan_id is None:
+                tipos_data = obtenerTodasTipoCuentas(db_path)
+            else:
+                tipos_data = obtenerTipoCuentasPorPlanCuenta(db_path, int(plan_id))
+            view = AccountListView(db_path, page, plan_id=plan_id)
             
             if plan_id: 
                 view.filter_by_account_plan_id(plan_id)
@@ -195,9 +216,9 @@ def contenido(page: ft.Page, back_action=None, plan_id: int | None = None):
                 ft.Container(expand=True),
                 ft.Row([
                     add_tipo_button_widget(page, lambda: account_list_view_ref[0].refresh(), plan_id),
-                    add_rubro_button_widget(page, lambda: account_list_view_ref[0].refresh()),
-                    add_generico_button_widget(page, lambda: account_list_view_ref[0].refresh()),
-                    add_button_widget(page, lambda: account_list_view_ref[0].refresh()),
+                    add_rubro_button_widget(page, lambda: account_list_view_ref[0].refresh(), plan_id),
+                    add_generico_button_widget(page, lambda: account_list_view_ref[0].refresh(), plan_id),
+                    add_button_widget(page, lambda: account_list_view_ref[0].refresh(), plan_id),
                 ], spacing=10)
             ]),
             

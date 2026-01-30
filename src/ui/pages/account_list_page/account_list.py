@@ -7,6 +7,7 @@ from data.obtenerCuentas import (
     obtenerTodosGenericoPorRubro,
     obtenerTodosRubroPorTipoCuenta,
     obtenerTodasTipoCuentas,
+    obtenerTipoCuentasPorPlanCuenta,
 )
 from src.ui.pages.account_list_page.account_card import create_item_account
 from src.ui.pages.account_list_page.catalog_cards import (
@@ -17,10 +18,14 @@ from src.ui.pages.account_list_page.catalog_cards import (
 
 #gutyk
 class AccountListView:
-    def __init__(self, db_path: str, page: ft.Page):
+    def __init__(self, db_path: str, page: ft.Page, plan_id: int | None = None):
         self.page = page
         self.db_path = db_path
-        self.cuentas: list[CuentaContable] = obtenerTodasCuentasContables(self.db_path)
+        self.plan_id: int | None = plan_id
+        if self.plan_id is None:
+            self.cuentas: list[CuentaContable] = obtenerTodasCuentasContables(self.db_path)
+        else:
+            self.cuentas = obtenerCuentasContablesPorPlanCuenta(self.db_path, int(self.plan_id))
         self.tipos_map: dict[int, TipoCuenta] = {}
         self.rubros_map: dict[int, Rubro] = {}
         self.genericos_map: dict[int, Generico] = {}
@@ -66,7 +71,10 @@ class AccountListView:
     def _load_catalog_data(self):
         """Carga catálogo completo para mostrar elementos sin cuentas (estilo left join)."""
         try:
-            tipos = obtenerTodasTipoCuentas(self.db_path)
+            if self.plan_id is None:
+                tipos = obtenerTodasTipoCuentas(self.db_path)
+            else:
+                tipos = obtenerTipoCuentasPorPlanCuenta(self.db_path, int(self.plan_id))
             self.tipos_map = {t.id_tipo_cuenta: t for t in tipos}
             self.rubros_map = {}
             self.genericos_map = {}
@@ -211,6 +219,7 @@ class AccountListView:
     def filter_by_account_plan_id(self, id_plan: int):
         """Filtra recargando desde BD por `id_plan_cuenta` y actualiza la vista."""
         try:
+            self.plan_id = id_plan
             if id_plan is None:
                 # Todos
                 self.cuentas = obtenerTodasCuentasContables(self.db_path)
@@ -228,7 +237,10 @@ class AccountListView:
     def refresh(self):
         """Recargar las cuentas desde la base de datos y actualizar la vista."""
         try:
-            self.cuentas = obtenerTodasCuentasContables(self.db_path)
+            if self.plan_id is None:
+                self.cuentas = obtenerTodasCuentasContables(self.db_path)
+            else:
+                self.cuentas = obtenerCuentasContablesPorPlanCuenta(self.db_path, int(self.plan_id))
             self._load_catalog_data()
             self._rebuild_summaries()
             self._sort_cuentas_inplace()
