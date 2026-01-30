@@ -64,22 +64,47 @@ def exportar_libro_diario(libro_id: int, output_file: str | Path | None = None) 
     nombre_empresa = df.iloc[0]["nombre_empresa"]
     contador = df.iloc[0]["contador"]
 
-    ws.insert_rows(1)
-    ws.merge_cells("A1:E1")
-    cell_title = ws["A1"]
-    cell_title.value = f"Libro Diario: Empresa({nombre_empresa}) (Contador: {contador})"
-    cell_title.font = Font(bold=True, size=16)
-    cell_title.alignment = Alignment(horizontal="center", vertical="center")
-    cell_title.fill = PatternFill("solid", fgColor="0C46E6")
-    cell_title.border = thin_border
+    def _apply_header(sheet, title_text: str):
+        sheet.insert_rows(1)
+        sheet.merge_cells("A1:E1")
+        cell_title = sheet["A1"]
+        cell_title.value = title_text
+        cell_title.font = Font(bold=True, size=16)
+        cell_title.alignment = Alignment(horizontal="center", vertical="center")
+        cell_title.fill = PatternFill("solid", fgColor="0C46E6")
+        cell_title.border = thin_border
 
-    headers = ["Fecha", "Código", "Descripción", "Debe", "Haber"]
-    for col_idx, h in enumerate(headers, start=1):
-        cell = ws.cell(row=2, column=col_idx, value=h)
-        cell.font = Font(bold=True, size=14)
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.fill = PatternFill("solid", fgColor="2F9EE7")
-        cell.border = thin_border
+        headers = ["Fecha", "Código", "Descripción", "Debe", "Haber"]
+        for col_idx, h in enumerate(headers, start=1):
+            cell = sheet.cell(row=2, column=col_idx, value=h)
+            cell.font = Font(bold=True, size=14)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.fill = PatternFill("solid", fgColor="2F9EE7")
+            cell.border = thin_border
+
+    def _apply_column_formats(sheet):
+        sheet.column_dimensions["A"].width = 15
+        sheet.column_dimensions["B"].width = 15
+        sheet.column_dimensions["C"].width = 50
+        sheet.column_dimensions["D"].width = 20
+        sheet.column_dimensions["E"].width = 20
+
+        for cell in sheet["A"]:
+            if cell.row != 1 and cell.value not in (None, ""):
+                cell.number_format = "DD/MM/YYYY"
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        for cell in sheet["B"]:
+            if cell.row != 1:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        for col in ["D", "E"]:
+            for cell in sheet[col]:
+                if cell.row != 1:
+                    cell.number_format = "#,##0.00"
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    _apply_header(ws, f"Libro Diario: Empresa({nombre_empresa}) (Contador: {contador})")
 
     fila = 3
     separador_num = 1
@@ -127,26 +152,116 @@ def exportar_libro_diario(libro_id: int, output_file: str | Path | None = None) 
                 ws.cell(row=fila, column=col).border = thin_border
             fila += 1
 
-    ws.column_dimensions["A"].width = 15
-    ws.column_dimensions["B"].width = 15
-    ws.column_dimensions["C"].width = 50
-    ws.column_dimensions["D"].width = 20
-    ws.column_dimensions["E"].width = 20
+    _apply_column_formats(ws)
 
-    for cell in ws["A"]:
-        if cell.row != 1 and cell.value not in (None, ""):
-            cell.number_format = "DD/MM/YYYY"
+    # --- Hoja Libro Mayor (formato Cuentas T) ---
+    conn = sqlite3.connect(bd_path)
+    df_mayor = pd.read_sql_query(
+        """
+        SELECT
+            a.id_asiento AS AsientoID,
+            cc.id_cuenta_contable AS CuentaID,
+            cc.codigo_cuenta AS Código,
+            cc.nombre_cuenta AS NombreCuenta,
+            la.debe AS Debe,
+            la.haber AS Haber
+        FROM linea_asiento la
+        INNER JOIN asiento a ON la.id_asiento=a.id_asiento
+        INNER JOIN cuenta_contable cc ON la.id_cuenta_contable = cc.id_cuenta_contable
+        WHERE a.id_libro_diario = ?
+        ORDER BY cc.codigo_cuenta, a.id_asiento, la.id_linea_asiento
+        """,
+        conn,
+        params=(libro_id,),
+    )
+    conn.close()
+
+    ws_mayor = wb.create_sheet("Libro Mayor")
+
+    # Título de hoja
+    ws_mayor.merge_cells("A1:E1")
+    cell_title = ws_mayor["A1"]
+    cell_title.value = f"Libro Mayor (Cuentas T): Empresa({nombre_empresa}) (Contador: {contador})"
+    cell_title.font = Font(bold=True, size=16)
+    cell_title.alignment = Alignment(horizontal="center", vertical="center")
+    cell_title.fill = PatternFill("solid", fgColor="0C46E6")
+    cell_title.border = thin_border
+
+    fila = 3
+    for _, grupo in df_mayor.groupby("CuentaID", sort=False):
+        codigo = grupo.iloc[0]["Código"]
+        nombre = grupo.iloc[0]["NombreCuenta"]
+
+        # Encabezado de cuenta
+        ws_mayor.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=5)
+        cell_account = ws_mayor.cell(row=fila, column=1, value=f"{codigo} - {nombre}")
+        cell_account.font = Font(bold=True, size=13)
+        cell_account.alignment = Alignment(horizontal="center", vertical="center")
+        cell_account.fill = PatternFill("solid", fgColor="2F9EE7")
+        for col in range(1, 6):
+            ws_mayor.cell(row=fila, column=col).border = thin_border
+        fila += 1
+
+        # Encabezado Debe / Haber
+        ws_mayor.merge_cells(start_row=fila, start_column=1, end_row=fila, end_column=2)
+        ws_mayor.merge_cells(start_row=fila, start_column=4, end_row=fila, end_column=5)
+        cell_debe_header = ws_mayor.cell(row=fila, column=1, value="Debe")
+        cell_haber_header = ws_mayor.cell(row=fila, column=4, value="Haber")
+        for cell in (cell_debe_header, cell_haber_header):
+            cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.fill = PatternFill("solid", fgColor="B7D8FF")
+        for col in range(1, 6):
+            ws_mayor.cell(row=fila, column=col).border = thin_border
+        fila += 1
 
-    for cell in ws["B"]:
-        if cell.row != 1:
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+        debe_rows = [(int(r["AsientoID"]), float(r["Debe"] or 0)) for _, r in grupo.iterrows() if (r["Debe"] or 0) > 0]
+        haber_rows = [(int(r["AsientoID"]), float(r["Haber"] or 0)) for _, r in grupo.iterrows() if (r["Haber"] or 0) > 0]
 
-    for col in ["D", "E"]:
-        for cell in ws[col]:
-            if cell.row != 1:
+        max_len = max(len(debe_rows), len(haber_rows), 1)
+        total_debe = 0.0
+        total_haber = 0.0
+        for i in range(max_len):
+            if i < len(debe_rows):
+                asiento_id, monto = debe_rows[i]
+                ws_mayor.cell(row=fila, column=1, value=asiento_id)
+                ws_mayor.cell(row=fila, column=2, value=monto)
+                ws_mayor.cell(row=fila, column=1).alignment = Alignment(horizontal="center", vertical="center")
+                ws_mayor.cell(row=fila, column=2).alignment = Alignment(horizontal="center", vertical="center")
+                total_debe += monto
+            if i < len(haber_rows):
+                asiento_id, monto = haber_rows[i]
+                ws_mayor.cell(row=fila, column=4, value=asiento_id)
+                ws_mayor.cell(row=fila, column=5, value=monto)
+                ws_mayor.cell(row=fila, column=4).alignment = Alignment(horizontal="center", vertical="center")
+                ws_mayor.cell(row=fila, column=5).alignment = Alignment(horizontal="center", vertical="center")
+                total_haber += monto
+            for col in range(1, 6):
+                ws_mayor.cell(row=fila, column=col).border = thin_border
+            fila += 1
+
+        # Totales
+        ws_mayor.cell(row=fila, column=1, value="Total")
+        ws_mayor.cell(row=fila, column=2, value=total_debe)
+        ws_mayor.cell(row=fila, column=4, value="Total")
+        ws_mayor.cell(row=fila, column=5, value=total_haber)
+        for col in (1, 2, 4, 5):
+            ws_mayor.cell(row=fila, column=col).font = Font(bold=True)
+            ws_mayor.cell(row=fila, column=col).alignment = Alignment(horizontal="center", vertical="center")
+        for col in range(1, 6):
+            ws_mayor.cell(row=fila, column=col).border = thin_border
+        fila += 2
+
+    ws_mayor.column_dimensions["A"].width = 12
+    ws_mayor.column_dimensions["B"].width = 18
+    ws_mayor.column_dimensions["C"].width = 4
+    ws_mayor.column_dimensions["D"].width = 12
+    ws_mayor.column_dimensions["E"].width = 18
+
+    for col in ["B", "E"]:
+        for cell in ws_mayor[col]:
+            if cell.row != 1 and cell.value not in (None, ""):
                 cell.number_format = "#,##0.00"
-                cell.alignment = Alignment(horizontal="center", vertical="center")
 
     output_path = Path(output_file) if output_file else Path(f"Libro_Diario_{libro_id}.xlsx")
     wb.save(output_path)

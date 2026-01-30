@@ -222,8 +222,16 @@ def contenido(page: ft.Page, libro: LibroDiario):
                             ft.Text("", expand=1),
                             ft.Text(codigo or '', expand=1, color=ft.Colors.GREY_800),
                             indent_desc,
-                            ft.Text(f"{float(debe or 0):.2f}", expand=1, color=ft.Colors.GREEN_700),
-                            ft.Text(f"{float(haber or 0):.2f}", expand=1, color=ft.Colors.RED_700),
+                            ft.Container(
+                                expand=1,
+                                alignment=ft.Alignment(1, 0),
+                                content=ft.Text(f"{float(debe or 0):.2f}", color=ft.Colors.GREEN_700),
+                            ),
+                            ft.Container(
+                                expand=1,
+                                alignment=ft.Alignment(1, 0),
+                                content=ft.Text(f"{float(haber or 0):.2f}", color=ft.Colors.RED_700),
+                            ),
                         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                     )
                 )
