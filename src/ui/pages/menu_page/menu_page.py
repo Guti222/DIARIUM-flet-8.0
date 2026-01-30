@@ -13,7 +13,6 @@ from src.ui.pages.menu_page.title_menu import titlemenu
 from src.ui.pages.book_journal_page.book_journal_page import book_journal_page, create_journal_book, agregar_libro
 from src.utils.paths import get_db_path
 from data.planCuentasOps import crear_plan_cuenta
-from data.catalogoOps import crear_tipo_cuenta, crear_rubro, crear_generico
 
 
 def menu_page(page: ft.Page):
@@ -168,9 +167,11 @@ def menu_page(page: ft.Page):
                     if row_tipo:
                         new_id = int(row_tipo[0])
                     else:
-                        ok, _msg, new_id = crear_tipo_cuenta(db_path, tipo_name or tipo_code, tipo_code, int(plan_id))
-                        if not ok:
-                            new_id = 0
+                        cur.execute(
+                            "INSERT INTO tipo_cuenta (nombre_tipo_cuenta, numero_cuenta, id_plan_cuenta) VALUES (?, ?, ?)",
+                            (tipo_name or tipo_code, tipo_code, int(plan_id)),
+                        )
+                        new_id = int(cur.lastrowid or 0)
                     tipo_map[tipo_code] = int(new_id or 0)
 
                 tipo_id = tipo_map.get(tipo_code, 0)
@@ -185,9 +186,11 @@ def menu_page(page: ft.Page):
                         if row_r:
                             new_id = int(row_r[0])
                         else:
-                            ok, _msg, new_id = crear_rubro(db_path, tipo_id, rubro_name or rubro_code, rubro_code)
-                            if not ok:
-                                new_id = 0
+                            cur.execute(
+                                "INSERT INTO rubro (id_tipo_cuenta, nombre_rubro, numero_cuenta) VALUES (?, ?, ?)",
+                                (tipo_id, rubro_name or rubro_code, rubro_code),
+                            )
+                            new_id = int(cur.lastrowid or 0)
                         rubro_map[rubro_key] = int(new_id or 0)
 
                 rubro_id = rubro_map.get(f"{tipo_id}:{rubro_code}", 0)
@@ -202,9 +205,11 @@ def menu_page(page: ft.Page):
                         if row_g:
                             new_id = int(row_g[0])
                         else:
-                            ok, _msg, new_id = crear_generico(db_path, rubro_id, gen_name or gen_code, gen_code)
-                            if not ok:
-                                new_id = 0
+                            cur.execute(
+                                "INSERT INTO generico (id_rubro, nombre_generico, numero_cuenta) VALUES (?, ?, ?)",
+                                (rubro_id, gen_name or gen_code, gen_code),
+                            )
+                            new_id = int(cur.lastrowid or 0)
                         gen_map[gen_key] = int(new_id or 0)
 
                 gen_id = gen_map.get(f"{rubro_id}:{gen_code}", 0)

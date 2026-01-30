@@ -42,24 +42,25 @@ def main(page: ft.Page):
     # Inicializar / reparar BD si está vacía o incompleta
     db_path = get_db_path()
 
-    # En modo instalador, la BD ya debe existir en AppData.
-    if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text("No se encontró la base de datos en AppData. Reinstala o ejecuta el instalador."),
-            bgcolor=ft.Colors.RED_600,
-            duration=6000,
-        )
-        page.snack_bar.open = True
-        page.update()
-    else:
-        # Si existe, opcionalmente validar estructura mínima
-        try:
+    # Inicializar / reparar BD en AppData si falta o está incompleta
+    needs_init = not os.path.exists(db_path) or os.path.getsize(db_path) == 0
+    try:
+        if not needs_init:
             conn = sqlite3.connect(db_path)
             conn.execute("SELECT 1 FROM plan_cuentas LIMIT 1")
+            conn.execute("SELECT 1 FROM libro_diario LIMIT 1")
             conn.close()
+    except Exception:
+        needs_init = True
+
+    if needs_init:
+        try:
+            crear_estructura_db(db_path)
+            poblar_tablas_catalogo(db_path)
+            poblar_cuentas_contables(db_path)
         except Exception as ex:
             page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"BD inválida en AppData: {ex}"),
+                content=ft.Text(f"No se pudo inicializar la base de datos: {ex}"),
                 bgcolor=ft.Colors.RED_600,
                 duration=6000,
             )
