@@ -653,8 +653,14 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
                 ))
                 page.update()
 
+            plan_val = getattr(libro_diario, "id_plan_cuenta", None)
+            try:
+                plan_val = int(plan_val) if plan_val is not None else None
+            except Exception:
+                plan_val = None
+
             page.clean()
-            page.add(account_list_page(page, back_action=back_to_journal))
+            page.add(account_list_page(page, back_action=back_to_journal, plan_id=plan_val))
             page.update()
         except Exception as ex:
             page.snack_bar = ft.SnackBar(content=ft.Text(f"Plan de cuentas no disponible: {ex}"), bgcolor=ft.Colors.RED_600, duration=4000)

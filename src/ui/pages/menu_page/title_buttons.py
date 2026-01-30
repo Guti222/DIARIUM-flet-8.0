@@ -81,7 +81,6 @@ def title_buttons(open_file_explorer_callback=None, page: ft.Page = None):
                 bgcolor=ft.Colors.WHITE,
             ),
             actions=[
-                ft.TextButton("Ver todos", on_click=lambda e: (setattr(selector, "open", False), p.update(), navigate_to_account_list(p, plan_id=None)), style=ft.ButtonStyle(color=ft.Colors.GREEN)),
                 ft.TextButton("Cerrar", on_click=lambda e: (setattr(selector, "open", False), p.update()), style=ft.ButtonStyle(color=ft.Colors.BLUE)),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
