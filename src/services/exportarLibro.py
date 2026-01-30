@@ -263,6 +263,83 @@ def exportar_libro_diario(libro_id: int, output_file: str | Path | None = None) 
             if cell.row != 1 and cell.value not in (None, ""):
                 cell.number_format = "#,##0.00"
 
+    # --- Hoja Plan de Cuentas ---
+    try:
+        conn = sqlite3.connect(bd_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COALESCE(id_plan_cuenta, 0) FROM libro_diario WHERE id_libro_diario = ?",
+            (libro_id,),
+        )
+        plan_id_row = cur.fetchone()
+        plan_id = int(plan_id_row[0]) if plan_id_row else 0
+
+        df_plan = pd.read_sql_query(
+            """
+            SELECT
+                t.numero_cuenta AS TipoCodigo,
+                t.nombre_tipo_cuenta AS TipoNombre,
+                r.numero_cuenta AS RubroCodigo,
+                r.nombre_rubro AS RubroNombre,
+                g.numero_cuenta AS GenericoCodigo,
+                g.nombre_generico AS GenericoNombre,
+                c.codigo_cuenta AS CuentaCodigo,
+                c.nombre_cuenta AS CuentaNombre,
+                c.descripcion AS CuentaDescripcion
+            FROM tipo_cuenta t
+            LEFT JOIN rubro r ON r.id_tipo_cuenta = t.id_tipo_cuenta
+            LEFT JOIN generico g ON g.id_rubro = r.id_rubro
+            LEFT JOIN cuenta_contable c ON c.id_generico = g.id_generico
+            WHERE t.id_plan_cuenta = ?
+            ORDER BY t.numero_cuenta, r.numero_cuenta, g.numero_cuenta, c.codigo_cuenta
+            """,
+            conn,
+            params=(plan_id,),
+        )
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    ws_plan = wb.create_sheet("Plan de Cuentas")
+    # Header
+    headers_plan = [
+        "TipoCodigo",
+        "TipoNombre",
+        "RubroCodigo",
+        "RubroNombre",
+        "GenericoCodigo",
+        "GenericoNombre",
+        "CuentaCodigo",
+        "CuentaNombre",
+        "CuentaDescripcion",
+    ]
+    for col_idx, h in enumerate(headers_plan, start=1):
+        cell = ws_plan.cell(row=1, column=col_idx, value=h)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.fill = PatternFill("solid", fgColor="B7D8FF")
+        cell.border = thin_border
+
+    # Data
+    if not df_plan.empty:
+        for r_idx, row in enumerate(df_plan.itertuples(index=False), start=2):
+            for c_idx, value in enumerate(row, start=1):
+                cell = ws_plan.cell(row=r_idx, column=c_idx, value=value)
+                cell.border = thin_border
+
+    # Column widths
+    ws_plan.column_dimensions["A"].width = 14
+    ws_plan.column_dimensions["B"].width = 28
+    ws_plan.column_dimensions["C"].width = 14
+    ws_plan.column_dimensions["D"].width = 28
+    ws_plan.column_dimensions["E"].width = 16
+    ws_plan.column_dimensions["F"].width = 28
+    ws_plan.column_dimensions["G"].width = 16
+    ws_plan.column_dimensions["H"].width = 32
+    ws_plan.column_dimensions["I"].width = 40
+
     output_path = Path(output_file) if output_file else Path(f"Libro_Diario_{libro_id}.xlsx")
     wb.save(output_path)
     return output_path

@@ -12,6 +12,8 @@ from src.ui.pages.menu_page.title_viewfiles import title_viewfiles
 from src.ui.pages.menu_page.title_menu import titlemenu
 from src.ui.pages.book_journal_page.book_journal_page import book_journal_page, create_journal_book, agregar_libro
 from src.utils.paths import get_db_path
+from data.planCuentasOps import crear_plan_cuenta
+from data.catalogoOps import crear_tipo_cuenta, crear_rubro, crear_generico
 
 
 def menu_page(page: ft.Page):
@@ -76,7 +78,164 @@ def menu_page(page: ft.Page):
 
 
     # --- 4. LÓGICA PESADA (EJECUTADA EN SEGUNDO PLANO) ---
-    def procesar_excel_en_hilo(file_path: str):
+    def _get_plan_id_by_name(db_path: str, plan_name: str) -> int | None:
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT id_plan_cuenta FROM plan_cuentas WHERE nombre_plan_cuentas = ?",
+                (plan_name.strip(),),
+            )
+            row = cur.fetchone()
+            return int(row[0]) if row else None
+        except Exception:
+            return None
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def _load_plan_sheet(file_path: str) -> pd.DataFrame | None:
+        try:
+            xl = pd.ExcelFile(file_path)
+            if "Plan de Cuentas" in xl.sheet_names:
+                return pd.read_excel(xl, sheet_name="Plan de Cuentas")
+        except Exception:
+            return None
+        return None
+
+    def _create_plan_from_sheet(db_path: str, plan_name: str, plan_df: pd.DataFrame) -> tuple[int, dict[str, int]]:
+        """Crea un plan de cuentas y retorna (plan_id, cuenta_map_por_codigo)."""
+        if not plan_name:
+            return 0, {}
+
+        plan_id = _get_plan_id_by_name(db_path, plan_name)
+        if plan_id is None:
+            plan_id = crear_plan_cuenta(db_path, plan_name) or 0
+
+        if plan_id == 0 or plan_df is None or plan_df.empty:
+            return plan_id, {}
+
+        # Normalizar columnas
+        cols = {str(c).strip(): c for c in plan_df.columns}
+        def col(name: str) -> str | None:
+            return cols.get(name)
+
+        tipo_code_col = col("TipoCodigo")
+        tipo_name_col = col("TipoNombre")
+        rubro_code_col = col("RubroCodigo")
+        rubro_name_col = col("RubroNombre")
+        gen_code_col = col("GenericoCodigo")
+        gen_name_col = col("GenericoNombre")
+        cuenta_code_col = col("CuentaCodigo")
+        cuenta_name_col = col("CuentaNombre")
+        cuenta_desc_col = col("CuentaDescripcion")
+
+        if not tipo_code_col:
+            return plan_id, {}
+
+        tipo_map: dict[str, int] = {}
+        rubro_map: dict[str, int] = {}
+        gen_map: dict[str, int] = {}
+        cuenta_map: dict[str, int] = {}
+
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.execute("PRAGMA busy_timeout=3000")
+            cur = conn.cursor()
+
+            for _, row in plan_df.iterrows():
+                tipo_code = str(row.get(tipo_code_col, "") or "").strip()
+                tipo_name = str(row.get(tipo_name_col, "") or "").strip()
+                rubro_code = str(row.get(rubro_code_col, "") or "").strip()
+                rubro_name = str(row.get(rubro_name_col, "") or "").strip()
+                gen_code = str(row.get(gen_code_col, "") or "").strip()
+                gen_name = str(row.get(gen_name_col, "") or "").strip()
+                cuenta_code = str(row.get(cuenta_code_col, "") or "").strip()
+                cuenta_name = str(row.get(cuenta_name_col, "") or "").strip()
+                cuenta_desc = str(row.get(cuenta_desc_col, "") or "").strip()
+
+                if not tipo_code:
+                    continue
+
+                if tipo_code not in tipo_map:
+                    cur.execute(
+                        "SELECT id_tipo_cuenta FROM tipo_cuenta WHERE numero_cuenta = ? AND id_plan_cuenta = ?",
+                        (tipo_code, int(plan_id)),
+                    )
+                    row_tipo = cur.fetchone()
+                    if row_tipo:
+                        new_id = int(row_tipo[0])
+                    else:
+                        ok, _msg, new_id = crear_tipo_cuenta(db_path, tipo_name or tipo_code, tipo_code, int(plan_id))
+                        if not ok:
+                            new_id = 0
+                    tipo_map[tipo_code] = int(new_id or 0)
+
+                tipo_id = tipo_map.get(tipo_code, 0)
+                if tipo_id and rubro_code:
+                    rubro_key = f"{tipo_id}:{rubro_code}"
+                    if rubro_key not in rubro_map:
+                        cur.execute(
+                            "SELECT id_rubro FROM rubro WHERE numero_cuenta = ? AND id_tipo_cuenta = ?",
+                            (rubro_code, tipo_id),
+                        )
+                        row_r = cur.fetchone()
+                        if row_r:
+                            new_id = int(row_r[0])
+                        else:
+                            ok, _msg, new_id = crear_rubro(db_path, tipo_id, rubro_name or rubro_code, rubro_code)
+                            if not ok:
+                                new_id = 0
+                        rubro_map[rubro_key] = int(new_id or 0)
+
+                rubro_id = rubro_map.get(f"{tipo_id}:{rubro_code}", 0)
+                if rubro_id and gen_code:
+                    gen_key = f"{rubro_id}:{gen_code}"
+                    if gen_key not in gen_map:
+                        cur.execute(
+                            "SELECT id_generico FROM generico WHERE numero_cuenta = ? AND id_rubro = ?",
+                            (gen_code, rubro_id),
+                        )
+                        row_g = cur.fetchone()
+                        if row_g:
+                            new_id = int(row_g[0])
+                        else:
+                            ok, _msg, new_id = crear_generico(db_path, rubro_id, gen_name or gen_code, gen_code)
+                            if not ok:
+                                new_id = 0
+                        gen_map[gen_key] = int(new_id or 0)
+
+                gen_id = gen_map.get(f"{rubro_id}:{gen_code}", 0)
+                if gen_id and cuenta_code:
+                    if cuenta_code not in cuenta_map:
+                        cur.execute(
+                            "SELECT id_cuenta_contable FROM cuenta_contable WHERE id_generico = ? AND codigo_cuenta = ?",
+                            (gen_id, cuenta_code),
+                        )
+                        row_c = cur.fetchone()
+                        if row_c:
+                            cuenta_map[cuenta_code] = int(row_c[0])
+                        else:
+                            cur.execute(
+                                "INSERT INTO cuenta_contable (id_generico, descripcion, nombre_cuenta, codigo_cuenta) VALUES (?, ?, ?, ?)",
+                                (gen_id, cuenta_desc, cuenta_name or cuenta_code, cuenta_code),
+                            )
+                            cuenta_map[cuenta_code] = int(cur.lastrowid or 0)
+
+            conn.commit()
+        except Exception as ex:
+            print(f"Error creando plan desde Excel: {ex}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        return plan_id, cuenta_map
+
+    def procesar_excel_en_hilo(file_path: str, plan_name: str | None = None):
         """
         Esta función contiene toda la lógica pesada. 
         Se ejecutará en un hilo aparte para no congelar la UI.
@@ -132,8 +291,16 @@ def menu_page(page: ft.Page):
 
             contador_val = f"{contador or 'N/D'} | importado: {sello_import}"
 
+            # --- Crear Plan si viene en el Excel ---
+            plan_df = _load_plan_sheet(file_path)
+            plan_id = 0
+            cuenta_map_from_plan: dict[str, int] = {}
+            if plan_df is not None:
+                plan_name_final = (plan_name or "").strip() or Path(file_path).stem
+                plan_id, cuenta_map_from_plan = _create_plan_from_sheet(get_db_path(), plan_name_final, plan_df)
+
             # --- Crear Libro en BD ---
-            libro = create_journal_book(empresa, contador_val, str(ano or ""), id_mes, plan_id=0, origen="importado", fecha_importacion=sello_import)
+            libro = create_journal_book(empresa, contador_val, str(ano or ""), id_mes, plan_id=plan_id, origen="importado", fecha_importacion=sello_import)
             libro_id = agregar_libro(libro, get_db_path(), allow_duplicates=True)
             
             if not isinstance(libro_id, int):
@@ -144,8 +311,11 @@ def menu_page(page: ft.Page):
             cur = conn.cursor()
             
             # Cargar mapa de cuentas
-            cur.execute("SELECT id_cuenta_contable, codigo_cuenta FROM cuenta_contable")
-            cuenta_map = { (c or '').strip(): i for (i, c) in cur.fetchall() }
+            if cuenta_map_from_plan:
+                cuenta_map = cuenta_map_from_plan
+            else:
+                cur.execute("SELECT id_cuenta_contable, codigo_cuenta FROM cuenta_contable")
+                cuenta_map = { (c or '').strip(): i for (i, c) in cur.fetchall() }
 
             # Iniciar Transacción (CRÍTICO PARA VELOCIDAD)
             cur.execute("BEGIN TRANSACTION")
@@ -225,7 +395,7 @@ def menu_page(page: ft.Page):
 
 
     # --- 5. ORQUESTADOR DE IMPORTACIÓN ---
-    def iniciar_importacion(file_path: str):
+    def iniciar_importacion(file_path: str, plan_name: str | None = None):
         # 1. Mostrar pantalla de carga
         loading_overlay.visible = True
         page.update()
@@ -248,7 +418,7 @@ def menu_page(page: ft.Page):
 
         # 3. Función wrapper para el hilo
         def thread_target():
-            res = procesar_excel_en_hilo(file_path)
+            res = procesar_excel_en_hilo(file_path, plan_name=plan_name)
             # Volver al hilo principal no es automático en todas las versiones,
             # pero en Flet podemos acceder a la variable `resultado` desde fuera si usamos closures,
             # o simplemente ejecutar la actualización visual aquí si el entorno lo permite.
@@ -263,8 +433,56 @@ def menu_page(page: ft.Page):
     # --- 6. EVENTO DEL BOTÓN ---
     def open_file_explorer(_e=None):
         path = pick_file_with_tk()
-        if path:
+        if not path:
+            return
+
+        # Si el Excel trae plan de cuentas, solicitar nombre del plan
+        plan_df_preview = _load_plan_sheet(path)
+        if plan_df_preview is None:
             iniciar_importacion(path)
+            return
+
+        name_field = ft.TextField(
+            label="Nombre del nuevo plan",
+            value=Path(path).stem,
+            width=420,
+            border_color=ft.Colors.BLUE,
+            color=ft.Colors.BLACK,
+        )
+
+        def close_dialog(dlg):
+            dlg.open = False
+            page.update()
+
+        def confirm(_e=None):
+            plan_name = (name_field.value or "").strip()
+            if not plan_name:
+                show_snack_bar("Ingresa un nombre para el plan de cuentas")
+                return
+            close_dialog(dlg)
+            iniciar_importacion(path, plan_name=plan_name)
+
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Plan de cuentas detectado", color=ft.Colors.BLUE),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("Este archivo trae un plan de cuentas. Indica el nombre para crearlo:", color=ft.Colors.BLACK),
+                    name_field,
+                ], spacing=10),
+                width=520,
+                bgcolor=ft.Colors.WHITE,
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: close_dialog(dlg), style=ft.ButtonStyle(color=ft.Colors.RED)),
+                ft.ElevatedButton("Crear e importar", on_click=confirm, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=ft.Colors.WHITE,
+        )
+        page.overlay.append(dlg)
+        dlg.open = True
+        page.update()
 
     # --- 6.1 BOTÓN DE CRÉDITOS ---
     creators = [
