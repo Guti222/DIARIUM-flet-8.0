@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import flet as ft
 import sqlite3
 from src.utils.paths import get_db_path
+from data.planCuentasOps import copiar_cuentas_de_plan
 
 def resource_path(relative_path: str) -> str:
     """Resolve path for PyInstaller bundles and normal runs."""
@@ -28,6 +29,11 @@ def create_account_list_dialog(page: ft.Page, refresh_callback: callable = None)
         hint_text="Escribe el nombre",
         border_color=ft.Colors.BLUE,
         color=ft.Colors.BLACK
+    )
+
+    copy_checkbox = ft.Checkbox(
+        label="Copiar base del plan General",
+        value=True,
     )
     
     # Función build_menu IDÉNTICA a la que funciona
@@ -70,14 +76,22 @@ def create_account_list_dialog(page: ft.Page, refresh_callback: callable = None)
                     """
                     INSERT INTO plan_cuentas (nombre_plan_cuentas)
                     VALUES (?)
-                    """,(nombre_cuenta,)
+                    """,
+                    (nombre_cuenta,)
                 )
+                new_id = cur.lastrowid
                 conn.commit()
             finally:
                 try:
                     conn.close()
                 except Exception:
                     pass
+
+            if copy_checkbox.value:
+                try:
+                    copiar_cuentas_de_plan(db_path, 0, int(new_id))
+                except Exception as ex:
+                    print(f"Error copiando base del plan General: {ex}")
 
             # Feedback y cierre
             dlg.open = False
@@ -105,10 +119,11 @@ def create_account_list_dialog(page: ft.Page, refresh_callback: callable = None)
         content=ft.Container(
             content=ft.Column([
                 ft.Text("Nombre del plan de cuentas:", weight=ft.FontWeight.BOLD, color=ft.Colors.BLACK),
-                cuenta_field
+                cuenta_field,
+                copy_checkbox,
             ], spacing=15),
             width=420,
-            height=140,
+            height=170,
             padding=20,
             bgcolor=ft.Colors.WHITE,
         ),

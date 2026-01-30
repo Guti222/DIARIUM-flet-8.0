@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['test\\filepicker.py'],
     pathex=[],
     binaries=[],
-    datas=[('venv/Lib/site-packages/flet', 'flet')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='DiariumApp',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    version='C:\\Users\\augus\\AppData\\Local\\Temp\\5430666a-d173-45c8-9cf4-4b6b82ceaf67',
+    version='C:\\Users\\augus\\AppData\\Local\\Temp\\34439b09-8f31-4dcc-89cc-6cf3de3c8a2c',
 )

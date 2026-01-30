@@ -7,14 +7,6 @@ from src.ui.pages.book_journal_page.dialog.accounting_voucher_dialog import Acco
 import urllib.parse
 from src.services.exportarLibro import exportar_libro_diario
 
-# Tkinter para selector nativo de carpetas
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-except Exception:
-    tk = None
-    filedialog = None
-
 from data.models.libro import LibroDiario
 from src.ui.components.backgrounds import create_modern_background
 from data.obtenerAsientos import obtenerAsientosDeLibro
@@ -518,27 +510,30 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
     name_field = ft.TextField(hint_text="Nombre de archivo", value=default_filename, width=600)
     path_field = ft.TextField(hint_text="Ruta destino", width=600)
 
+    def _load_tk():
+        try:
+            import tkinter as _tk
+            from tkinter import filedialog as _filedialog
+            return _tk, _filedialog
+        except Exception:
+            return None, None
+
     def pick_directory_with_tk() -> str | None:
-        if filedialog is None:
-            page.snack_bar = ft.SnackBar(content=ft.Text("Tkinter no está disponible en este entorno"), bgcolor=ft.Colors.RED_600, duration=4000)
-            page.snack_bar.open = True
-            page.update()
+        tk, filedialog = _load_tk()
+        if filedialog is None or tk is None:
             return None
         root = None
         try:
             root = tk.Tk()
             root.withdraw()
+            root.attributes('-topmost', True)
             try:
-                root.attributes('-topmost', True)
                 root.update()
             except Exception:
                 pass
             path = filedialog.askdirectory(title="Seleccionar carpeta destino")
             return path or None
-        except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(f"No se pudo abrir el selector: {ex}"), bgcolor=ft.Colors.RED_600, duration=4000)
-            page.snack_bar.open = True
-            page.update()
+        except Exception:
             return None
         finally:
             try:
@@ -582,12 +577,16 @@ def book_journal_page(page: ft.Page, empresa: str = "", contador: str = "", anio
         dest = pick_directory_with_tk()
         if dest:
             path_field.value = dest
-        try:
-            export_dialog.open = True
-            page.dialog = export_dialog
+            try:
+                export_dialog.open = True
+                page.dialog = export_dialog
+                page.update()
+            except Exception:
+                pass
+        else:
+            page.snack_bar = ft.SnackBar(content=ft.Text("Tkinter no está disponible"), bgcolor=ft.Colors.RED_600, duration=4000)
+            page.snack_bar.open = True
             page.update()
-        except Exception:
-            pass
 
     export_dialog = ft.AlertDialog(
         title=ft.Text("Exportar a Excel"),

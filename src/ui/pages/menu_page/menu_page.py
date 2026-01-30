@@ -1,18 +1,9 @@
 import flet as ft
-from types import SimpleNamespace
 import sqlite3
 from pathlib import Path
 import pandas as pd
 import threading
 import time
-
-# Intento de importar Tkinter (Solo para el diálogo de archivos)
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-except Exception:
-    tk = None
-    filedialog = None
 
 # Tus importaciones personalizadas
 from src.ui.components.backgrounds import create_modern_background
@@ -51,37 +42,37 @@ def menu_page(page: ft.Page):
         page.update()
 
 
-    # --- 3. SELECTOR DE ARCHIVOS (TKINTER OPTIMIZADO) ---
-    def pick_file_with_tk() -> SimpleNamespace | None:
-        if filedialog is None:
+    # --- 3. SELECTOR DE ARCHIVOS (TKINTER) ---
+    def _load_tk():
+        try:
+            import tkinter as _tk
+            from tkinter import filedialog as _filedialog
+            return _tk, _filedialog
+        except Exception:
+            return None, None
+
+    def pick_file_with_tk() -> str | None:
+        tk, filedialog = _load_tk()
+        if filedialog is None or tk is None:
             show_snack_bar("Tkinter no está disponible")
             return None
-        
-        path = None
         try:
-            # Crear instancia temporal de Tk oculta
             root = tk.Tk()
-            root.withdraw() 
-            root.attributes('-topmost', True) # Poner al frente
-            
-            # Abrir diálogo
+            root.withdraw()
+            root.attributes('-topmost', True)
             path = filedialog.askopenfilename(
                 title="Seleccionar libro contable Excel",
                 filetypes=[("Excel", "*.xlsx *.xls")],
-                parent=root
+                parent=root,
             )
-            
-            # Destruir instancia inmediatamente para liberar memoria
             root.destroy()
-        except Exception as ex:
-            print(f"Error Tkinter: {ex}")
-            show_snack_bar(f"Error al abrir selector: {ex}")
+            return path or None
+        except Exception:
+            try:
+                root.destroy()
+            except Exception:
+                pass
             return None
-
-        if path:
-            p = Path(path)
-            return SimpleNamespace(name=p.name, path=str(p))
-        return None
 
 
     # --- 4. LÓGICA PESADA (EJECUTADA EN SEGUNDO PLANO) ---
@@ -271,15 +262,9 @@ def menu_page(page: ft.Page):
 
     # --- 6. EVENTO DEL BOTÓN ---
     def open_file_explorer(_e=None):
-        # Seleccionar archivo (Bloquea brevemente UI, pero es rápido)
-        selected_file = pick_file_with_tk()
-        
-        if selected_file:
-            print(f"[IMPORT] Archivo seleccionado: {selected_file.name}")
-            # Iniciar proceso pesado en hilo
-            iniciar_importacion(selected_file.path)
-        else:
-            print("[IMPORT] Selección cancelada")
+        path = pick_file_with_tk()
+        if path:
+            iniciar_importacion(path)
 
     # --- 6.1 BOTÓN DE CRÉDITOS ---
     creators = [
