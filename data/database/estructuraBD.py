@@ -323,7 +323,6 @@ def poblar_cuentas_contables(nombre_db):
             (genericos['Efectivo y Equivalentes de Efectivo'], 'Fondos Fijos', 'Fondos Fijos', '1.1.1.003'),
             (genericos['Efectivo y Equivalentes de Efectivo'], 'Bancos (Cuenta Corriente Bolívares)', 'Bancos Bolívares', '1.1.1.004'),
             (genericos['Efectivo y Equivalentes de Efectivo'], 'Bancos (Cuenta Moneda Extranjera $)', 'Bancos Dólares', '1.1.1.005'),
-            (genericos['Efectivo y Equivalentes de Efectivo'], 'Equivalentes de Efectivo', 'Equivalentes de Efectivo', '1.1.1.006'),
             
             # Inversiones a Corto Plazo (id_generico = 2)
             (genericos['Inversiones a Corto Plazo'], 'Instrumentos Financieros Corto Plazo', 'Inversiones Corto Plazo', '1.1.2.001'),

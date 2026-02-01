@@ -32,6 +32,7 @@ def menu_page(page: ft.Page):
 
 
     # --- 2. FUNCIONES DE AYUDA (UI) ---
+    import_finish_handler = {"fn": None}
     def show_snack_bar(message):
         snack_bar = ft.SnackBar(
             content=ft.Text(message),
@@ -41,6 +42,39 @@ def menu_page(page: ft.Page):
         page.overlay.append(snack_bar)
         snack_bar.open = True
         page.update()
+
+    def _run_on_ui(fn):
+        """Ejecuta una función en el hilo de UI cuando sea posible."""
+        try:
+            call_from_thread = getattr(page, "call_from_thread", None)
+            if callable(call_from_thread):
+                call_from_thread(fn)
+                return
+            run_on_main = getattr(page, "run_on_main", None)
+            if callable(run_on_main):
+                run_on_main(fn)
+                return
+        except Exception:
+            pass
+        try:
+            fn()
+        except Exception:
+            pass
+
+    def _pubsub_handler(message):
+        try:
+            if isinstance(message, dict) and message.get("type") == "import_result":
+                handler = import_finish_handler.get("fn")
+                if callable(handler):
+                    handler(message.get("payload"))
+        except Exception:
+            pass
+
+    try:
+        if hasattr(page, "pubsub"):
+            page.pubsub.subscribe(_pubsub_handler)
+    except Exception:
+        pass
 
 
     # --- 3. SELECTOR DE ARCHIVOS (TKINTER) ---
@@ -408,7 +442,7 @@ def menu_page(page: ft.Page):
         # 2. Definir lo que pasa al terminar el hilo
         def on_thread_finish(resultado):
             loading_overlay.visible = False
-            
+
             if "error" in resultado:
                 show_snack_bar(resultado["error"])
                 page.update()
@@ -416,19 +450,27 @@ def menu_page(page: ft.Page):
                 # Éxito: Navegar a la página del libro
                 nuevo_id = resultado["libro_id"]
                 show_snack_bar("Libro cargado correctamente")
-                
+
                 page.clean()
                 page.add(book_journal_page(page, libro_id=nuevo_id))
                 page.update()
 
         # 3. Función wrapper para el hilo
+        import_finish_handler["fn"] = on_thread_finish
+
         def thread_target():
             res = procesar_excel_en_hilo(file_path, plan_name=plan_name)
-            # Volver al hilo principal no es automático en todas las versiones,
-            # pero en Flet podemos acceder a la variable `resultado` desde fuera si usamos closures,
-            # o simplemente ejecutar la actualización visual aquí si el entorno lo permite.
-            # Lo más seguro es esto:
-            on_thread_finish(res)
+            call_from_thread = getattr(page, "call_from_thread", None)
+            if callable(call_from_thread):
+                call_from_thread(lambda: on_thread_finish(res))
+                return
+            if hasattr(page, "pubsub"):
+                try:
+                    page.pubsub.send_all({"type": "import_result", "payload": res})
+                    return
+                except Exception:
+                    pass
+            _run_on_ui(lambda: on_thread_finish(res))
 
         # 4. Iniciar hilo
         t = threading.Thread(target=thread_target, daemon=True)
